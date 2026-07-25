@@ -157,17 +157,53 @@ function Metric({
   );
 }
 
-function SectionCard({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
+function SectionCard({
+  title,
+  children,
+  action,
+  icon,
+}: {
+  title: string;
+  children: React.ReactNode;
+  action?: React.ReactNode;
+  icon?: string;
+}) {
   return (
-    <Card className="p-5">
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-zinc-900">{title}</h3>
+    <Card className="p-5 transition hover:shadow-md">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          {icon ? (
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-100 text-base">
+              {icon}
+            </span>
+          ) : null}
+          <h3 className="text-sm font-semibold text-zinc-900">{title}</h3>
+        </div>
         {action}
       </div>
       {children}
     </Card>
   );
 }
+
+// Circular initials avatar for supplier rows.
+function initials(name: string) {
+  return name
+    .split(" ")
+    .map((w) => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
+const PO_COLORS: Record<string, string> = {
+  draft: "#a1a1aa",
+  ordered: "#3b82f6",
+  partially_received: "#f59e0b",
+  received: "#22c55e",
+  cancelled: "#ef4444",
+};
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -263,6 +299,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <SectionCard
               title="Sales trend"
+              icon="📈"
               action={<span className="text-xs text-zinc-400">{data.sales_overview.series.length} days</span>}
             >
               <p className="mb-4 text-2xl font-semibold text-zinc-950">
@@ -280,6 +317,7 @@ export default function DashboardPage() {
             </SectionCard>
             <SectionCard
               title={`Monthly expenses · ${data.monthly_expenses.year}`}
+              icon="💸"
               action={<span className="text-xs text-zinc-400">This month</span>}
             >
               <p className="mb-4 text-2xl font-semibold text-zinc-950">
@@ -299,116 +337,207 @@ export default function DashboardPage() {
 
           {/* Active orders + low stock */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <SectionCard title={`Active orders (${data.active_orders.active_count})`}>
+            <SectionCard title={`Active orders (${data.active_orders.active_count})`} icon="🧾">
               {data.active_orders.orders.length === 0 ? (
-                <p className="text-sm text-zinc-400">No active orders.</p>
+                <p className="py-6 text-center text-sm text-zinc-400">No active orders.</p>
               ) : (
-                <div className="space-y-2">
+                <ul className="divide-y divide-zinc-100">
                   {data.active_orders.orders.slice(0, 6).map((o) => (
-                    <div key={o.id} className="flex items-center justify-between text-sm">
-                      <div>
-                        <span className="font-medium text-zinc-900">{o.order_number}</span>
-                        <span className="ml-2 text-zinc-500">{o.table_label ?? humanize(o.order_type)}</span>
+                    <li
+                      key={o.id}
+                      className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-2.5 transition hover:bg-zinc-50"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-zinc-900 text-xs font-semibold text-white">
+                          {o.table_label ?? "—"}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-zinc-900">{o.order_number}</p>
+                          <p className="text-xs text-zinc-400">{humanize(o.order_type)}</p>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-zinc-600">{formatCurrency(o.total)}</span>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className="text-sm font-semibold text-zinc-900">{formatCurrency(o.total)}</span>
                         <StatusBadge kind="order" value={o.status} />
                       </div>
-                    </div>
+                    </li>
                   ))}
-                </div>
+                </ul>
               )}
             </SectionCard>
 
             <SectionCard
               title={`Low stock (${data.low_stock_items.low_stock_count})`}
-              action={<Link href="/dashboard/inventory" className="text-xs text-zinc-500 hover:text-zinc-900">View inventory</Link>}
+              icon="📦"
+              action={<Link href="/dashboard/inventory" className="text-xs font-medium text-zinc-500 hover:text-zinc-900">View inventory</Link>}
             >
               {data.low_stock_items.items.length === 0 ? (
-                <p className="text-sm text-zinc-400">Everything is above reorder level.</p>
+                <p className="py-6 text-center text-sm text-zinc-400">Everything is above reorder level.</p>
               ) : (
-                <div className="space-y-2">
-                  {data.low_stock_items.items.slice(0, 6).map((it) => (
-                    <div key={`${it.source}-${it.id}`} className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2">
-                        <Badge tone={it.source === "ingredient" ? "violet" : "cyan"}>{it.source}</Badge>
-                        <span className="text-zinc-900">{it.name}</span>
-                      </div>
-                      <span className="text-red-700">
-                        {it.current_stock} / {it.reorder_level} {it.unit}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                <ul className="space-y-3.5">
+                  {data.low_stock_items.items.slice(0, 6).map((it) => {
+                    const ratio = Math.min(1, it.current_stock / (it.reorder_level || 1));
+                    const barColor = ratio < 0.4 ? "#ef4444" : "#f59e0b";
+                    return (
+                      <li key={`${it.source}-${it.id}`}>
+                        <div className="mb-1.5 flex items-center justify-between gap-2">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <Badge tone={it.source === "ingredient" ? "violet" : "cyan"}>{it.source}</Badge>
+                            <span className="truncate text-sm text-zinc-900">{it.name}</span>
+                          </div>
+                          <span className="shrink-0 text-xs font-semibold" style={{ color: barColor }}>
+                            {it.current_stock} / {it.reorder_level} {it.unit}
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
+                          <div
+                            className="h-full rounded-full"
+                            style={{ width: `${Math.max(4, ratio * 100)}%`, backgroundColor: barColor }}
+                          />
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
               )}
             </SectionCard>
           </div>
 
           {/* Purchase summary + supplier summary */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <SectionCard title="Purchase orders">
-              <p className="mb-3 text-sm text-zinc-600">
-                Total value <span className="font-semibold text-zinc-900">{formatCurrency(data.purchase_summary.total_po_value)}</span>
-                <span className="mx-2 text-zinc-300">·</span>
-                Outstanding <span className="font-semibold text-zinc-900">{formatCurrency(data.purchase_summary.outstanding_value)}</span>
-              </p>
-              {data.purchase_summary.by_status.length === 0 ? (
-                <p className="text-sm text-zinc-400">No purchase orders in range.</p>
-              ) : (
-                <div className="space-y-1.5">
-                  {data.purchase_summary.by_status.map((s) => (
-                    <div key={s.status} className="flex items-center justify-between text-sm">
-                      <StatusBadge kind="purchase_order" value={s.status} />
-                      <span className="text-zinc-600">
-                        {s.po_count} · {formatCurrency(s.total_value)}
-                      </span>
-                    </div>
-                  ))}
+            <SectionCard title="Purchase orders" icon="🛒">
+              <div className="mb-4 grid grid-cols-2 gap-3">
+                <div className="rounded-lg bg-zinc-50 p-3">
+                  <p className="text-xs text-zinc-500">Total value</p>
+                  <p className="mt-0.5 text-lg font-semibold text-zinc-900">{formatCurrency(data.purchase_summary.total_po_value)}</p>
                 </div>
+                <div className="rounded-lg bg-amber-50 p-3">
+                  <p className="text-xs text-amber-700">Outstanding</p>
+                  <p className="mt-0.5 text-lg font-semibold text-amber-900">{formatCurrency(data.purchase_summary.outstanding_value)}</p>
+                </div>
+              </div>
+              {data.purchase_summary.by_status.length === 0 ? (
+                <p className="py-2 text-center text-sm text-zinc-400">No purchase orders in range.</p>
+              ) : (
+                <>
+                  {(() => {
+                    const totalCount = data.purchase_summary.by_status.reduce((a, s) => a + s.po_count, 0) || 1;
+                    return (
+                      <div className="mb-3 flex h-2.5 overflow-hidden rounded-full bg-zinc-100">
+                        {data.purchase_summary.by_status.map((s) => (
+                          <div
+                            key={s.status}
+                            style={{ width: `${(s.po_count / totalCount) * 100}%`, backgroundColor: PO_COLORS[s.status] ?? "#a1a1aa" }}
+                            title={`${humanize(s.status)}: ${s.po_count}`}
+                          />
+                        ))}
+                      </div>
+                    );
+                  })()}
+                  <ul className="space-y-1.5">
+                    {data.purchase_summary.by_status.map((s) => (
+                      <li key={s.status} className="flex items-center justify-between text-sm">
+                        <span className="flex items-center gap-2">
+                          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: PO_COLORS[s.status] ?? "#a1a1aa" }} />
+                          <span className="text-zinc-700">{humanize(s.status)}</span>
+                        </span>
+                        <span className="text-zinc-500">
+                          <span className="font-medium text-zinc-700">{s.po_count}</span> · {formatCurrency(s.total_value)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
             </SectionCard>
 
             <SectionCard
               title={`Top suppliers · ${data.supplier_summary.active_supplier_count} active`}
-              action={<Link href="/dashboard/suppliers" className="text-xs text-zinc-500 hover:text-zinc-900">View all</Link>}
+              icon="🚚"
+              action={<Link href="/dashboard/suppliers" className="text-xs font-medium text-zinc-500 hover:text-zinc-900">View all</Link>}
             >
               {data.supplier_summary.top_suppliers.length === 0 ? (
-                <p className="text-sm text-zinc-400">No supplier spend in range.</p>
+                <p className="py-6 text-center text-sm text-zinc-400">No supplier spend in range.</p>
               ) : (
-                <div className="space-y-2">
-                  {data.supplier_summary.top_suppliers.map((s) => (
-                    <div key={s.id} className="flex items-center justify-between text-sm">
-                      <span className="text-zinc-900">{s.name}</span>
-                      <span className="text-zinc-600">
-                        {formatCurrency(s.total_spend)} <span className="text-zinc-400">({s.invoice_count})</span>
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                (() => {
+                  const maxSpend = Math.max(...data.supplier_summary.top_suppliers.map((s) => s.total_spend), 1);
+                  return (
+                    <ul className="space-y-3.5">
+                      {data.supplier_summary.top_suppliers.map((s) => (
+                        <li key={s.id} className="flex items-center gap-3">
+                          <span
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
+                            style={{ backgroundImage: "linear-gradient(135deg, #3f3f46, #18181b)" }}
+                          >
+                            {initials(s.name)}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="truncate text-sm text-zinc-900">{s.name}</span>
+                              <span className="shrink-0 text-sm font-semibold text-zinc-900">{formatCurrency(s.total_spend)}</span>
+                            </div>
+                            <div className="mt-1.5 flex items-center gap-2">
+                              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-100">
+                                <div className="h-full rounded-full bg-zinc-800" style={{ width: `${(s.total_spend / maxSpend) * 100}%` }} />
+                              </div>
+                              <span className="shrink-0 text-xs text-zinc-400">{s.invoice_count} inv</span>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                })()
               )}
             </SectionCard>
           </div>
 
-          {/* Profit breakdown */}
-          <SectionCard title="Profit overview">
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-zinc-500">Revenue</p>
-                <p className="mt-1 text-lg font-semibold text-zinc-900">{formatCurrency(data.profit_overview.total_revenue)}</p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-zinc-500">COGS</p>
-                <p className="mt-1 text-lg font-semibold text-zinc-900">{formatCurrency(data.profit_overview.total_cost)}</p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-zinc-500">Gross profit</p>
-                <p className="mt-1 text-lg font-semibold text-green-700">{formatCurrency(data.profit_overview.gross_profit)}</p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-zinc-500">Margin</p>
-                <p className="mt-1 text-lg font-semibold text-zinc-900">{data.profit_overview.margin_pct ?? 0}%</p>
-              </div>
-            </div>
+          {/* Profit overview */}
+          <SectionCard title="Profit overview" icon="📊">
+            {(() => {
+              const p = data.profit_overview;
+              const rev = p.total_revenue || 1;
+              const profitPct = Math.max(0, (p.gross_profit / rev) * 100);
+              const cogsPct = Math.max(0, (p.total_cost / rev) * 100);
+              return (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-end justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-zinc-500">Revenue</p>
+                      <p className="text-3xl font-semibold text-zinc-950">{formatCurrency(p.total_revenue)}</p>
+                    </div>
+                    <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-semibold text-green-700">
+                      {p.margin_pct ?? 0}% margin
+                    </span>
+                  </div>
+
+                  {/* Composition: gross profit vs COGS as a share of revenue */}
+                  <div className="flex h-3.5 overflow-hidden rounded-full bg-zinc-100">
+                    <div style={{ width: `${profitPct}%`, backgroundColor: "#16a34a" }} title="Gross profit" />
+                    <div style={{ width: `${cogsPct}%`, backgroundColor: "#d4d4d8" }} title="COGS" />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3 pt-1">
+                    <div className="rounded-lg bg-green-50 p-3">
+                      <p className="flex items-center gap-1.5 text-xs text-green-700">
+                        <span className="h-2 w-2 rounded-full bg-green-600" /> Gross profit
+                      </p>
+                      <p className="mt-1 text-lg font-semibold text-green-800">{formatCurrency(p.gross_profit)}</p>
+                    </div>
+                    <div className="rounded-lg bg-zinc-50 p-3">
+                      <p className="flex items-center gap-1.5 text-xs text-zinc-500">
+                        <span className="h-2 w-2 rounded-full bg-zinc-300" /> COGS
+                      </p>
+                      <p className="mt-1 text-lg font-semibold text-zinc-800">{formatCurrency(p.total_cost)}</p>
+                    </div>
+                    <div className="rounded-lg bg-zinc-50 p-3">
+                      <p className="text-xs text-zinc-500">Margin</p>
+                      <p className="mt-1 text-lg font-semibold text-zinc-800">{p.margin_pct ?? 0}%</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </SectionCard>
         </div>
       ) : null}
