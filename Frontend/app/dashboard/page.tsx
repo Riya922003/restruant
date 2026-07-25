@@ -5,8 +5,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { useAuth } from "@/lib/auth-context";
-import { navForRole } from "@/lib/navigation";
-import { formatCurrency, formatDate, humanize } from "@/lib/formatters";
+import { formatCurrency, humanize } from "@/lib/formatters";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import {
   Card,
@@ -130,7 +129,6 @@ export default function DashboardPage() {
   );
 
   if (!user) return null;
-  const tiles = navForRole(user.role).filter((item) => item.href !== "/dashboard");
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -335,21 +333,6 @@ export default function DashboardPage() {
           </SectionCard>
         </div>
       ) : null}
-
-      {/* Quick module access */}
-      <h2 className="mt-8 text-sm font-medium uppercase tracking-wide text-zinc-500">Your modules</h2>
-      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {tiles.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="group rounded-xl border border-zinc-200 bg-white p-4 transition hover:border-zinc-900 hover:shadow-sm"
-          >
-            <p className="text-sm font-semibold text-zinc-900 group-hover:text-zinc-950">{item.label}</p>
-            <p className="mt-0.5 text-xs text-zinc-500">Open {item.label.toLowerCase()}</p>
-          </Link>
-        ))}
-      </div>
     </div>
   );
 }
