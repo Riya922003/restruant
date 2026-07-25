@@ -22,3 +22,6 @@ npm-debug.log*
 Backend/src/uploads/*
 !Backend/src/uploads/.gitkeep
 
+# internal planning specs (not shipped in the repo)
+phases/
+
