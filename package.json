@@ -1,0 +1,16 @@
+{
+  "name": "restaurantos",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "Backend",
+    "Frontend"
+  ],
+  "scripts": {
+    "dev:backend": "npm --prefix Backend run dev",
+    "dev:frontend": "npm --prefix Frontend run dev",
+    "build:frontend": "npm --prefix Frontend run build",
+    "lint:frontend": "npm --prefix Frontend run lint"
+  }
+}
+

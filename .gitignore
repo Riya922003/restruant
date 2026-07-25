@@ -1,0 +1,24 @@
+# dependencies
+node_modules/
+.venv/
+__pycache__/
+
+# build output
+.next/
+dist/
+build/
+out/
+
+# env and local files
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+
+# uploads
+Backend/src/uploads/*
+!Backend/src/uploads/.gitkeep
+
