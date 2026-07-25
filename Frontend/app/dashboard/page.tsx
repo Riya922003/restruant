@@ -7,13 +7,7 @@ import { useApi } from "@/lib/use-api";
 import { useAuth } from "@/lib/auth-context";
 import { formatCurrency, humanize } from "@/lib/formatters";
 import { Badge, StatusBadge } from "@/components/ui/badge";
-import {
-  Card,
-  ErrorState,
-  LoadingState,
-  PageHeader,
-  StatCard,
-} from "@/components/ui/primitives";
+import { Card, ErrorState, LoadingState, PageHeader } from "@/components/ui/primitives";
 
 type Range = "7d" | "30d" | "month";
 
@@ -89,22 +83,77 @@ const RANGES: { value: Range; label: string }[] = [
 const MONTH_LABEL = (iso: string) =>
   new Date(iso).toLocaleDateString("en-IN", { month: "short" });
 
-// Minimal dependency-free bar chart.
-function Bars({ data, color = "bg-zinc-900" }: { data: { label: string; value: number }[]; color?: string }) {
+// Dependency-free bar chart. Each column fills the fixed-height track so the
+// per-bar percentage heights actually resolve; hovering reveals the value.
+function BarChart({
+  data,
+  from,
+  to,
+  format = (v) => String(v),
+}: {
+  data: { label: string; value: number }[];
+  from: string;
+  to: string;
+  format?: (v: number) => string;
+}) {
   const max = Math.max(1, ...data.map((d) => d.value));
-  if (data.length === 0) return <p className="text-sm text-zinc-400">No data in range.</p>;
+  if (data.length === 0)
+    return <p className="py-16 text-center text-sm text-zinc-400">No data in range.</p>;
   return (
-    <div className="flex h-40 items-end gap-1">
-      {data.map((d, i) => (
-        <div key={i} className="flex flex-1 flex-col items-center gap-1" title={`${d.label}: ${d.value}`}>
-          <div
-            className={`w-full rounded-t ${color}`}
-            style={{ height: `${Math.max(2, (d.value / max) * 100)}%` }}
-          />
-          <span className="truncate text-[10px] text-zinc-400">{d.label}</span>
+    <div>
+      <div className="relative flex h-44 items-end gap-1.5">
+        {/* faint gridlines for depth */}
+        <div className="pointer-events-none absolute inset-0 flex flex-col justify-between">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="border-t border-dashed border-zinc-100" />
+          ))}
         </div>
-      ))}
+        {data.map((d, i) => (
+          <div key={i} className="group relative flex h-full flex-1 flex-col justify-end">
+            <div className="pointer-events-none absolute inset-x-0 -top-1 z-10 mx-auto w-max -translate-y-full rounded bg-zinc-900 px-1.5 py-0.5 text-[10px] font-medium text-white opacity-0 shadow transition-opacity group-hover:opacity-100">
+              {format(d.value)}
+            </div>
+            {/* Inline gradient: robust across Tailwind's gradient-utility rename. */}
+            <div
+              className="w-full rounded-t-md transition-opacity group-hover:opacity-80"
+              style={{
+                height: `${Math.max(3, (d.value / max) * 100)}%`,
+                backgroundImage: `linear-gradient(to top, ${from}, ${to})`,
+              }}
+            />
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 flex gap-1.5 border-t border-zinc-100 pt-1.5">
+        {data.map((d, i) => (
+          <span key={i} className="flex-1 truncate text-center text-[10px] text-zinc-400">
+            {d.label}
+          </span>
+        ))}
+      </div>
     </div>
+  );
+}
+
+// Metric card with a colored accent rail — richer than a plain stat tile.
+function Metric({
+  label,
+  value,
+  hint,
+  accent = "bg-zinc-900",
+}: {
+  label: string;
+  value: React.ReactNode;
+  hint?: string;
+  accent?: string;
+}) {
+  return (
+    <Card className="relative overflow-hidden p-4 pl-5">
+      <span className={`absolute inset-y-0 left-0 w-1.5 ${accent}`} />
+      <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">{label}</p>
+      <p className="mt-1 text-2xl font-semibold text-zinc-950">{value}</p>
+      {hint ? <p className="mt-0.5 text-xs text-zinc-500">{hint}</p> : null}
+    </Card>
   );
 }
 
@@ -160,38 +209,51 @@ export default function DashboardPage() {
         <div className="space-y-4">
           {/* Headline stats */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard
+            <Metric
               label="Sales"
+              accent="bg-emerald-500"
               value={formatCurrency(data.sales_overview.total_sales)}
               hint={`${data.sales_overview.order_count} paid orders`}
             />
-            <StatCard
+            <Metric
               label="Avg order value"
+              accent="bg-teal-500"
               value={formatCurrency(data.sales_overview.average_order_value)}
+              hint="per paid order"
             />
-            <StatCard
+            <Metric
               label="Gross profit"
+              accent="bg-green-600"
               value={formatCurrency(data.profit_overview.gross_profit)}
               hint={`${data.profit_overview.margin_pct ?? 0}% margin`}
             />
-            <StatCard
+            <Metric
               label="Occupancy"
+              accent="bg-blue-500"
               value={`${data.table_occupancy.occupancy_pct ?? 0}%`}
               hint={`${data.table_occupancy.occupied}/${data.table_occupancy.total} tables`}
             />
-            <StatCard label="Active orders" value={data.active_orders.active_count} />
-            <StatCard
+            <Metric
+              label="Active orders"
+              accent="bg-violet-500"
+              value={data.active_orders.active_count}
+              hint="in progress now"
+            />
+            <Metric
               label="Low stock"
+              accent="bg-red-500"
               value={data.low_stock_items.low_stock_count}
               hint="at/below reorder level"
             />
-            <StatCard
+            <Metric
               label="Open PO value"
+              accent="bg-amber-500"
               value={formatCurrency(data.purchase_summary.outstanding_value)}
               hint="ordered, not received"
             />
-            <StatCard
+            <Metric
               label="Payables"
+              accent="bg-rose-500"
               value={formatCurrency(data.supplier_summary.outstanding_invoice_total)}
               hint="unpaid invoices"
             />
@@ -199,17 +261,34 @@ export default function DashboardPage() {
 
           {/* Sales trend + monthly expenses */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <SectionCard title="Sales trend">
-              <Bars
+            <SectionCard
+              title="Sales trend"
+              action={<span className="text-xs text-zinc-400">{data.sales_overview.series.length} days</span>}
+            >
+              <p className="mb-4 text-2xl font-semibold text-zinc-950">
+                {formatCurrency(data.sales_overview.total_sales)}
+              </p>
+              <BarChart
+                from="#059669"
+                to="#6ee7b7"
+                format={formatCurrency}
                 data={data.sales_overview.series.map((s) => ({
                   label: new Date(s.day).getDate().toString(),
                   value: s.sales,
                 }))}
               />
             </SectionCard>
-            <SectionCard title={`Monthly expenses · ${data.monthly_expenses.year}`}>
-              <Bars
-                color="bg-amber-500"
+            <SectionCard
+              title={`Monthly expenses · ${data.monthly_expenses.year}`}
+              action={<span className="text-xs text-zinc-400">This month</span>}
+            >
+              <p className="mb-4 text-2xl font-semibold text-zinc-950">
+                {formatCurrency(data.monthly_expenses.current_month_total)}
+              </p>
+              <BarChart
+                from="#d97706"
+                to="#fcd34d"
+                format={formatCurrency}
                 data={data.monthly_expenses.months.map((m) => ({
                   label: MONTH_LABEL(m.month),
                   value: m.total_amount,
