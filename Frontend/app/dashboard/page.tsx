@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 import { formatCurrency, humanize } from "@/lib/formatters";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Card, ErrorState, LoadingState, PageHeader } from "@/components/ui/primitives";
+import { DashboardInsightsCard } from "@/components/ai/dashboard-insights-card";
 
 type Range = "7d" | "30d" | "month";
 
@@ -314,6 +315,10 @@ export default function DashboardPage() {
         <ErrorState message={error} onRetry={refetch} />
       ) : data ? (
         <div className="space-y-4">
+          {["owner", "manager", "store_manager", "chef"].includes(user.role) ? (
+            <DashboardInsightsCard />
+          ) : null}
+
           {/* Headline stats — operational first, then financial (role-gated) */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {data.table_occupancy ? (

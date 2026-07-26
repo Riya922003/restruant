@@ -8,7 +8,7 @@ from app.clients.cloudinary_client import configure_cloudinary
 from app.core.config import get_settings
 from app.core.database import close_pool, open_pool
 from app.core.errors import register_error_handlers
-from app.routes import inventory_ai, invoice_ocr, meta, pricing_ai
+from app.routes import insights, inventory_ai, invoice_ocr, meta, pricing_ai
 
 logging.basicConfig(level=logging.INFO)
 
@@ -38,6 +38,7 @@ def create_app() -> FastAPI:
     register_error_handlers(app)
 
     app.include_router(meta.router, prefix="/ai", tags=["meta"])
+    app.include_router(insights.router, prefix="/ai/insights", tags=["insights"])
     app.include_router(invoice_ocr.router, prefix="/ai/invoices", tags=["invoice-ocr"])
     app.include_router(inventory_ai.router, prefix="/ai/inventory", tags=["inventory-ai"])
     app.include_router(pricing_ai.router, prefix="/ai/menu", tags=["pricing-ai"])
