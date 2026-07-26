@@ -98,7 +98,8 @@ async def list_imports(status: str | None, batch_id: int | None, page: int, limi
         SELECT i.id, i.batch_id, i.original_filename, i.mime_type, i.status,
                i.extraction_confidence, i.error_message, i.matched_supplier_id,
                i.created_invoice_id, i.file_url, i.created_at,
-               s.name AS matched_supplier_name
+               s.name AS matched_supplier_name,
+               i.extracted_data->>'supplier_name' AS extracted_supplier_name
         FROM invoice_imports i
         LEFT JOIN suppliers s ON s.id = i.matched_supplier_id
         {clause}
@@ -164,6 +165,24 @@ async def reject(import_id: int, user) -> dict:
     await fetch_one("UPDATE invoice_imports SET status='rejected' WHERE id=%s RETURNING id", [import_id])
     await write_audit(user.id, "invoice.rejected", "invoice_import", import_id, None)
     return await get_import(import_id)
+
+
+async def delete_import(import_id: int, user) -> dict:
+    row = await fetch_one(
+        "SELECT cloudinary_public_id, file_url FROM invoice_imports WHERE id = %s", [import_id]
+    )
+    if not row:
+        raise ApiError(404, "Invoice import not found")
+    from app.clients import storage
+
+    # Best-effort removal of the stored original; never block the delete on it.
+    try:
+        await asyncio.to_thread(storage.delete_file, row["cloudinary_public_id"], row["file_url"])
+    except Exception:
+        pass
+    await fetch_one("DELETE FROM invoice_imports WHERE id = %s RETURNING id", [import_id])
+    await write_audit(user.id, "invoice.deleted", "invoice_import", import_id, None)
+    return {"deleted": True, "id": import_id}
 
 
 # --- Approve (transactional) ---------------------------------------------------

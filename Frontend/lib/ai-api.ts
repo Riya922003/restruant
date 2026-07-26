@@ -41,6 +41,7 @@ export const aiApi = {
   get: <T>(path: string) => aiFetch<T>(path),
   post: <T>(path: string, body?: unknown) => aiFetch<T>(path, { method: "POST", body }),
   patch: <T>(path: string, body?: unknown) => aiFetch<T>(path, { method: "PATCH", body }),
+  del: <T>(path: string) => aiFetch<T>(path, { method: "DELETE" }),
 };
 
 // List endpoints return the full { data, meta } envelope.

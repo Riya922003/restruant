@@ -73,13 +73,24 @@ def _stub(filename: str) -> dict:
 def _to_money(value) -> float | None:
     if value is None:
         return None
-    try:
-        cleaned = re.sub(r"[^0-9.\-]", "", str(value))
-        if cleaned in ("", "-", ".", "-."):
+    if isinstance(value, (int, float)):
+        try:
+            return float(round(Decimal(str(value)), 2))
+        except (InvalidOperation, ValueError):
             return None
-        return float(round(Decimal(cleaned), 2))
+    s = str(value).strip()
+    # Only a LEADING minus (or accounting parentheses) means negative. A trailing
+    # dash is the Indian "/-" filler (rupees and zero paise), not a minus sign, so
+    # "240 -" must parse as 240, not -240.
+    negative = bool(re.match(r"^[-(]", s))
+    cleaned = re.sub(r"[^0-9.]", "", s)
+    if cleaned in ("", "."):
+        return None
+    try:
+        num = float(round(Decimal(cleaned), 2))
     except (InvalidOperation, ValueError):
         return None
+    return -num if negative else num
 
 
 _DATE_FORMATS = (
@@ -103,12 +114,18 @@ def _to_date(value) -> str | None:
         return None
 
 
+def _abs(value):
+    # Supplier purchase invoices are non-negative; any negative here is an OCR
+    # artifact (e.g. a trailing dash read as a minus), so take the magnitude.
+    return abs(value) if value is not None else None
+
+
 def _normalize(data: dict) -> dict:
     items = []
     for li in data.get("line_items") or []:
-        qty = _to_money(li.get("quantity"))
-        unit = _to_money(li.get("unit_price"))
-        total = _to_money(li.get("line_total"))
+        qty = _abs(_to_money(li.get("quantity")))
+        unit = _abs(_to_money(li.get("unit_price")))
+        total = _abs(_to_money(li.get("line_total")))
         if total is None and qty is not None and unit is not None:
             total = round(qty * unit, 2)
         items.append(
@@ -120,15 +137,26 @@ def _normalize(data: dict) -> dict:
             }
         )
 
-    subtotal = _to_money(data.get("subtotal"))
-    tax = _to_money(data.get("tax"))
-    total = _to_money(data.get("total"))
+    subtotal = _abs(_to_money(data.get("subtotal")))
+    tax = _abs(_to_money(data.get("tax")))
+    total = _abs(_to_money(data.get("total")))
+    supplier_name = data.get("supplier_name") or None
+    invoice_number = data.get("invoice_number") or None
+    invoice_date = _to_date(data.get("invoice_date"))
     notes = data.get("notes")
+
     confidence = data.get("confidence")
     try:
         confidence = max(0.0, min(100.0, float(confidence))) if confidence is not None else None
     except (TypeError, ValueError):
         confidence = None
+    # Veryfi does not always return a document-level confidence; derive one from
+    # how many key fields were captured so the list never shows a blank score.
+    if confidence is None:
+        captured = sum(
+            [bool(supplier_name), bool(invoice_number), bool(invoice_date), total is not None, bool(items)]
+        )
+        confidence = round(100.0 * captured / 5, 1)
 
     # Cross-check the line-item sum against the stated total; flag drift, do not
     # silently "fix" it, and lower confidence so the reviewer looks closer.
@@ -136,12 +164,12 @@ def _normalize(data: dict) -> dict:
     if total is not None and line_sum and abs(line_sum - total) > max(1.0, 0.02 * total):
         drift = f"Line-item sum {line_sum} differs from stated total {total}."
         notes = f"{notes} {drift}".strip() if notes else drift
-        confidence = min(confidence, 40.0) if confidence is not None else 40.0
+        confidence = min(confidence, 40.0)
 
     normalized = {
-        "supplier_name": (data.get("supplier_name") or None),
-        "invoice_number": (data.get("invoice_number") or None),
-        "invoice_date": _to_date(data.get("invoice_date")),
+        "supplier_name": supplier_name,
+        "invoice_number": invoice_number,
+        "invoice_date": invoice_date,
         "due_date": _to_date(data.get("due_date")),
         "currency": (data.get("currency") or None),
         "line_items": items,

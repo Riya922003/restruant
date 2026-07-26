@@ -95,3 +95,8 @@ async def approve_import(
 @router.post("/imports/{import_id}/reject")
 async def reject_import(import_id: int, user=Depends(_manager)):
     return ok(await invoice_service.reject(import_id, user))
+
+
+@router.delete("/imports/{import_id}")
+async def delete_import(import_id: int, user=Depends(_manager)):
+    return ok(await invoice_service.delete_import(import_id, user))

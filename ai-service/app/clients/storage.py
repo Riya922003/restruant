@@ -42,6 +42,19 @@ def is_local(file_url: str | None) -> bool:
     return bool(file_url) and file_url.startswith(_LOCAL_PREFIX)
 
 
+def delete_file(public_id: str | None, file_url: str | None) -> None:
+    """Remove the stored original (local file or Cloudinary asset). Best-effort."""
+    if not public_id:
+        return
+    if is_local(file_url):
+        Path(public_id).unlink(missing_ok=True)
+        return
+    import cloudinary.uploader
+
+    cloudinary_client.ensure_configured()
+    cloudinary.uploader.destroy(public_id, type="authenticated", resource_type="image")
+
+
 def fetch_file(public_id: str | None, file_url: str | None) -> bytes:
     """Read the stored original back as bytes (for OCR in the worker)."""
     if is_local(file_url):

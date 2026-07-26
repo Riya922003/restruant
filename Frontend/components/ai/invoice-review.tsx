@@ -79,6 +79,18 @@ export function InvoiceReview({
     });
   }
 
+  function removeLine(i: number) {
+    setEd((prev) => (prev ? { ...prev, line_items: prev.line_items.filter((_, idx) => idx !== i) } : prev));
+  }
+
+  function addLine() {
+    setEd((prev) =>
+      prev
+        ? { ...prev, line_items: [...prev.line_items, { description: "", quantity: null, unit_price: null, line_total: null }] }
+        : prev,
+    );
+  }
+
   async function run(label: string, fn: () => Promise<unknown>) {
     setBusy(label);
     setError(null);
@@ -184,26 +196,53 @@ export function InvoiceReview({
           </div>
 
           <div>
-            <p className="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
-              Line items ({ed.line_items.length})
-            </p>
-            <div className="max-h-56 overflow-y-auto rounded-lg border border-zinc-200">
+            <div className="mb-1 flex items-center justify-between">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                Line items ({ed.line_items.length})
+              </p>
+              {!terminal ? (
+                <button onClick={addLine} className="text-xs font-medium text-zinc-700 hover:text-zinc-950">
+                  + Add item
+                </button>
+              ) : null}
+            </div>
+            <div className="max-h-60 overflow-y-auto rounded-lg border border-zinc-200">
               <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-[10px] uppercase tracking-wide text-zinc-400">
+                    <th className="px-1 py-1">Description</th>
+                    <th className="w-14 px-1 py-1">Qty</th>
+                    <th className="w-16 px-1 py-1">Unit</th>
+                    <th className="w-20 px-1 py-1">Total</th>
+                    {!terminal ? <th className="w-6" /> : null}
+                  </tr>
+                </thead>
                 <tbody>
                   {ed.line_items.map((li, i) => (
-                    <tr key={i} className="border-b border-zinc-100 last:border-0">
+                    <tr key={i} className="border-t border-zinc-100">
                       <td className="p-1">
                         <Input value={li.description} disabled={terminal}
                           onChange={(e) => setLine(i, { description: e.target.value })} />
                       </td>
-                      <td className="w-16 p-1">
+                      <td className="p-1">
                         <Input type="number" value={li.quantity ?? ""} disabled={terminal}
                           onChange={(e) => setLine(i, { quantity: num(e.target.value) })} />
                       </td>
-                      <td className="w-20 p-1">
+                      <td className="p-1">
+                        <Input type="number" value={li.unit_price ?? ""} disabled={terminal}
+                          onChange={(e) => setLine(i, { unit_price: num(e.target.value) })} />
+                      </td>
+                      <td className="p-1">
                         <Input type="number" value={li.line_total ?? ""} disabled={terminal}
                           onChange={(e) => setLine(i, { line_total: num(e.target.value) })} />
                       </td>
+                      {!terminal ? (
+                        <td className="p-1 text-center">
+                          <button onClick={() => removeLine(i)} className="text-zinc-400 hover:text-red-600" aria-label="Remove line">
+                            ✕
+                          </button>
+                        </td>
+                      ) : null}
                     </tr>
                   ))}
                 </tbody>

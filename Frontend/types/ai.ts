@@ -104,6 +104,7 @@ export type ImportRow = {
   error_message: string | null;
   matched_supplier_id: number | null;
   matched_supplier_name: string | null;
+  extracted_supplier_name: string | null;
   created_invoice_id: number | null;
   file_url: string | null;
   created_at: string;

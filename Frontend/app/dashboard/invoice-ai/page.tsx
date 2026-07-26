@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
-import { aiDownload, aiList, aiUpload } from "@/lib/ai-api";
+import { aiApi, aiDownload, aiList, aiUpload } from "@/lib/ai-api";
 import { useApi } from "@/lib/use-api";
 import { formatDateTime } from "@/lib/formatters";
 import { Badge } from "@/components/ui/badge";
@@ -82,6 +82,16 @@ export default function InvoiceAiPage() {
     }
   }
 
+  async function doDelete(id: number, name: string) {
+    if (!confirm(`Delete "${name}"? This removes the uploaded file and its extraction.`)) return;
+    try {
+      await aiApi.del(`/ai/invoices/imports/${id}`);
+      refetch();
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : "Delete failed");
+    }
+  }
+
   async function doExport() {
     const qs = new URLSearchParams();
     if (from) qs.set("from", from);
@@ -157,10 +167,12 @@ export default function InvoiceAiPage() {
         </div>
       </Card>
 
-      {/* Imports list */}
-      {loading ? (
+      {/* Imports list. Only show the full loading/error states on the first load;
+          during background polling we keep the table visible (row spinners show
+          progress) so a refetch never flashes like an error. */}
+      {loading && !data ? (
         <LoadingState />
-      ) : error ? (
+      ) : error && !data ? (
         <ErrorState message={error} onRetry={refetch} />
       ) : !data || data.data.length === 0 ? (
         <EmptyState title="No invoices yet" description="Upload one or more supplier invoices to get started." />
@@ -195,17 +207,27 @@ export default function InvoiceAiPage() {
                   <td className="px-4 py-3 text-zinc-600">
                     {r.extraction_confidence != null ? `${r.extraction_confidence}%` : "-"}
                   </td>
-                  <td className="px-4 py-3 text-zinc-600">{r.matched_supplier_name ?? "-"}</td>
+                  <td className="px-4 py-3 text-zinc-600">
+                    {r.matched_supplier_name ?? r.extracted_supplier_name ?? "-"}
+                    {!r.matched_supplier_name && r.extracted_supplier_name ? (
+                      <span className="ml-1 text-xs text-amber-600">(unmatched)</span>
+                    ) : null}
+                  </td>
                   <td className="px-4 py-3 text-zinc-500">{formatDateTime(r.created_at)}</td>
-                  <td className="px-4 py-3 text-right">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      disabled={["queued", "processing", "uploaded"].includes(r.status)}
-                      onClick={() => setSelected(r.id)}
-                    >
-                      {r.status === "approved" || r.status === "rejected" ? "View" : "Review"}
-                    </Button>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={["queued", "processing", "uploaded"].includes(r.status)}
+                        onClick={() => setSelected(r.id)}
+                      >
+                        {r.status === "approved" || r.status === "rejected" ? "View" : "Review"}
+                      </Button>
+                      <Button variant="danger" size="sm" onClick={() => doDelete(r.id, r.original_filename)}>
+                        Delete
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
