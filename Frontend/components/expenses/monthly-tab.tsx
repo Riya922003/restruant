@@ -4,6 +4,7 @@ import { useState } from "react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { Card, EmptyState, ErrorState, LoadingState, StatCard } from "@/components/ui/primitives";
+import { Select } from "@/components/ui/field";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 
 type ByCategory = {
@@ -37,17 +38,13 @@ export function MonthlyTab() {
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <select
-          value={year}
-          onChange={(e) => setYear(e.target.value)}
-          className="w-full max-w-40 rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-950 outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
-        >
+        <Select value={year} onChange={(e) => setYear(e.target.value)} className="max-w-40">
           {YEARS.map((y) => (
             <option key={y} value={y}>
               {y}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {loading ? (
