@@ -1,0 +1,53 @@
+# Render Blueprint for the RestaurantOS AI service (FastAPI).
+#
+# Deploy: Render Dashboard -> New -> Blueprint -> pick this repo -> Apply, then
+# fill in the secret values (marked sync:false) in the dashboard prompt.
+#
+# Invoice extraction runs INLINE in the web service by default, so no separate
+# worker is required on Render's free tier. For a dedicated background queue,
+# set REDIS_URL (uncomment below) AND add a paid Background Worker with:
+#   startCommand: rq worker invoices --url $REDIS_URL
+#
+# Secrets are never committed; they live in the Render dashboard.
+
+services:
+  - type: web
+    name: restaurantos-ai
+    runtime: python
+    rootDir: ai-service
+    plan: free
+    region: virginia          # close to the Neon us-east database
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.10"
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: GROK_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: GROK_TEXT_MODEL
+        value: llama-3.3-70b-versatile
+      # --- secrets: enter these in the Render dashboard ---
+      - key: DATABASE_URL        # same Neon URL the Express backend uses
+        sync: false
+      - key: JWT_SECRET          # MUST match the backend's JWT_SECRET
+        sync: false
+      - key: FRONTEND_ORIGIN     # the Vercel frontend URL
+        sync: false
+      - key: GROK_API_KEY        # Groq (gsk_...) key
+        sync: false
+      - key: VERYFI_CLIENT_ID
+        sync: false
+      - key: VERYFI_CLIENT_SECRET
+        sync: false
+      - key: VERYFI_USERNAME
+        sync: false
+      - key: VERYFI_API_KEY
+        sync: false
+      - key: CLOUDINARY_URL      # key must have upload permission
+        sync: false
+      # - key: REDIS_URL         # optional: enables the RQ queue (needs a worker)
+      #   sync: false

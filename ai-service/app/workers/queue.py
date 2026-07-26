@@ -13,7 +13,9 @@ def get_queue():
         from redis import Redis
         from rq import Queue
 
-        conn = Redis.from_url(get_settings().redis_url)
+        # Short timeouts so that when Redis is not configured (e.g. a free-tier
+        # deploy with no worker) we fail fast and fall back to inline processing.
+        conn = Redis.from_url(get_settings().redis_url, socket_connect_timeout=3, socket_timeout=3)
         conn.ping()
         return Queue("invoices", connection=conn)
     except Exception as exc:  # redis down / not installed / bad URL
