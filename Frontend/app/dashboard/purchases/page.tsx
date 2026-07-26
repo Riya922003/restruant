@@ -25,9 +25,10 @@ export default function PurchasesPage() {
   const canManage = ["owner", "manager", "store_manager"].includes(user?.role ?? "");
 
   const [status, setStatus] = useState("");
+  const [search, setSearch] = useState("");
   const { data, loading, error, refetch } = useApi(
-    () => api.list<PO>(`/purchase-orders?limit=100${status ? `&status=${status}` : ""}`),
-    [status]
+    () => api.list<PO>(`/purchase-orders?limit=100${status ? `&status=${status}` : ""}${search ? `&search=${encodeURIComponent(search)}` : ""}`),
+    [status, search]
   );
   const suppliers = useApi(() => api.list<Ref>("/suppliers?limit=100"), []);
   const warehouses = useApi(() => api.list<Ref>("/warehouses?limit=100"), []);
@@ -107,6 +108,7 @@ export default function PurchasesPage() {
           <option value="">All statuses</option>
           {STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
         </Select>
+        <Input className="max-w-64" placeholder="Search PO # or notes" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
       {loading ? <LoadingState /> : error ? <ErrorState message={error} onRetry={refetch} /> : !data || data.data.length === 0 ? (

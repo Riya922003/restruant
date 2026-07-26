@@ -32,9 +32,10 @@ export default function TablesPage() {
   const canSetStatus = canManage || user?.role === "waiter";
 
   const [statusFilter, setStatusFilter] = useState("");
+  const [search, setSearch] = useState("");
   const { data, loading, error, refetch } = useApi(
-    () => api.list<Table>(`/tables?limit=100${statusFilter ? `&status=${statusFilter}` : ""}`),
-    [statusFilter]
+    () => api.list<Table>(`/tables?limit=100${statusFilter ? `&status=${statusFilter}` : ""}${search ? `&search=${encodeURIComponent(search)}` : ""}`),
+    [statusFilter, search]
   );
 
   const [showCreate, setShowCreate] = useState(false);
@@ -93,6 +94,7 @@ export default function TablesPage() {
             </option>
           ))}
         </Select>
+        <Input className="max-w-64" placeholder="Search label" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
       {loading ? (

@@ -12,7 +12,11 @@ type Warehouse = { id: number; name: string; location: string | null; type: stri
 type Category = { id: number; name: string; description: string | null; is_active: boolean };
 
 export function WarehousesTab({ canManage }: { canManage: boolean }) {
-  const { data, loading, error, refetch } = useApi(() => api.list<Warehouse>("/warehouses?limit=100&is_active=all"), []);
+  const [search, setSearch] = useState("");
+  const { data, loading, error, refetch } = useApi(
+    () => api.list<Warehouse>(`/warehouses?limit=100&is_active=all${search ? `&search=${encodeURIComponent(search)}` : ""}`),
+    [search]
+  );
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", location: "", type: "store" });
   const [err, setErr] = useState<string | null>(null);
@@ -28,7 +32,10 @@ export function WarehousesTab({ canManage }: { canManage: boolean }) {
 
   return (
     <div>
-      {canManage ? <div className="mb-4 flex justify-end"><Button onClick={() => { setErr(null); setOpen(true); }}>New warehouse</Button></div> : null}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <Input className="max-w-64" placeholder="Search name or location" value={search} onChange={(e) => setSearch(e.target.value)} />
+        {canManage ? <Button className="ml-auto" onClick={() => { setErr(null); setOpen(true); }}>New warehouse</Button> : null}
+      </div>
       {loading ? <LoadingState /> : error ? <ErrorState message={error} onRetry={refetch} /> : !data || data.data.length === 0 ? <EmptyState title="No warehouses" /> : (
         <Card className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -62,7 +69,11 @@ export function WarehousesTab({ canManage }: { canManage: boolean }) {
 }
 
 export function CategoriesTab({ canManage }: { canManage: boolean }) {
-  const { data, loading, error, refetch } = useApi(() => api.list<Category>("/product-categories?limit=100&is_active=all"), []);
+  const [search, setSearch] = useState("");
+  const { data, loading, error, refetch } = useApi(
+    () => api.list<Category>(`/product-categories?limit=100&is_active=all${search ? `&search=${encodeURIComponent(search)}` : ""}`),
+    [search]
+  );
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", description: "" });
   const [err, setErr] = useState<string | null>(null);
@@ -78,7 +89,10 @@ export function CategoriesTab({ canManage }: { canManage: boolean }) {
 
   return (
     <div>
-      {canManage ? <div className="mb-4 flex justify-end"><Button onClick={() => { setErr(null); setOpen(true); }}>New category</Button></div> : null}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <Input className="max-w-64" placeholder="Search name or description" value={search} onChange={(e) => setSearch(e.target.value)} />
+        {canManage ? <Button className="ml-auto" onClick={() => { setErr(null); setOpen(true); }}>New category</Button> : null}
+      </div>
       {loading ? <LoadingState /> : error ? <ErrorState message={error} onRetry={refetch} /> : !data || data.data.length === 0 ? <EmptyState title="No categories" /> : (
         <Card className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -115,10 +129,17 @@ type Movement = {
 };
 
 export function MovementsTab() {
-  const { data, loading, error, refetch } = useApi(() => api.list<Movement>("/stock-movements?limit=100"), []);
+  const [search, setSearch] = useState("");
+  const { data, loading, error, refetch } = useApi(
+    () => api.list<Movement>(`/stock-movements?limit=100${search ? `&search=${encodeURIComponent(search)}` : ""}`),
+    [search]
+  );
   const toneFor = (t: string) => (t === "stock_in" || t === "transfer" ? "green" : t === "adjustment" ? "blue" : "red");
   return (
     <div>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <Input className="max-w-64" placeholder="Search reference or reason" value={search} onChange={(e) => setSearch(e.target.value)} />
+      </div>
       {loading ? <LoadingState /> : error ? <ErrorState message={error} onRetry={refetch} /> : !data || data.data.length === 0 ? <EmptyState title="No stock movements" /> : (
         <Card className="overflow-x-auto">
           <table className="w-full text-sm">

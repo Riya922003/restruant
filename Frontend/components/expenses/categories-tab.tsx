@@ -10,9 +10,10 @@ import { Button, Card, EmptyState, ErrorState, LoadingState, Modal } from "@/com
 type Category = { id: number; name: string; description: string | null; is_active: boolean };
 
 export function CategoriesTab({ canManage }: { canManage: boolean }) {
+  const [search, setSearch] = useState("");
   const { data, loading, error, refetch } = useApi(
-    () => api.list<Category>("/expense-categories?limit=100&is_active=all"),
-    []
+    () => api.list<Category>(`/expense-categories?limit=100&is_active=all${search ? `&search=${encodeURIComponent(search)}` : ""}`),
+    [search]
   );
 
   const [open, setOpen] = useState(false);
@@ -47,9 +48,11 @@ export function CategoriesTab({ canManage }: { canManage: boolean }) {
 
   return (
     <div>
-      {canManage ? (
-        <div className="mb-4 flex justify-end">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <Input className="max-w-64" placeholder="Search name" value={search} onChange={(e) => setSearch(e.target.value)} />
+        {canManage ? (
           <Button
+            className="ml-auto"
             onClick={() => {
               setErr(null);
               setForm({ name: "", description: "" });
@@ -58,8 +61,8 @@ export function CategoriesTab({ canManage }: { canManage: boolean }) {
           >
             New category
           </Button>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       {loading ? (
         <LoadingState />

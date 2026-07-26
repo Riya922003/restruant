@@ -85,14 +85,15 @@ export default function OrdersPage() {
 
   const [statusFilter, setStatusFilter] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("");
+  const [search, setSearch] = useState("");
   const { data, loading, error, refetch } = useApi(
     () =>
       api.list<Order>(
         `/orders?limit=100${statusFilter ? `&status=${statusFilter}` : ""}${
           paymentFilter ? `&payment_status=${paymentFilter}` : ""
-        }`
+        }${search ? `&search=${encodeURIComponent(search)}` : ""}`
       ),
-    [statusFilter, paymentFilter]
+    [statusFilter, paymentFilter, search]
   );
 
   const [showCreate, setShowCreate] = useState(false);
@@ -124,6 +125,7 @@ export default function OrdersPage() {
             </option>
           ))}
         </Select>
+        <Input className="max-w-64" placeholder="Search order #" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
       {loading ? (
