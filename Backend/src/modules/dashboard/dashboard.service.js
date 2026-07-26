@@ -249,39 +249,57 @@ async function supplierSummary(boundary) {
   };
 }
 
-// Financial widgets are limited to these roles (spec 10 §11.1 stricter cut).
-// Operational widgets stay visible to every authenticated role. Owner is always
-// included; chef and waiter are intentionally excluded.
-const FINANCIAL_ROLES = ["owner", "manager", "store_manager", "cashier"];
-function canSeeFinancials(role) {
-  return FINANCIAL_ROLES.includes(role);
+// Per-role widget visibility (spec 10 §11.1, tuned per role):
+//  - owner/manager/store_manager: everything
+//  - chef/waiter: floor operations (active orders, occupancy, low stock)
+//  - cashier: billing/floor view only — active orders + occupancy. No company
+//    financials (sales/profit/expenses/purchases/suppliers) and no stock.
+const OPERATIONS = ["active_orders", "table_occupancy", "low_stock_items"];
+const ALL_WIDGETS = [
+  ...OPERATIONS,
+  "sales_overview",
+  "monthly_expenses",
+  "purchase_summary",
+  "profit_overview",
+  "supplier_summary",
+];
+const WIDGET_ACCESS = {
+  owner: null, // null = all widgets
+  manager: null,
+  store_manager: null,
+  chef: OPERATIONS,
+  waiter: OPERATIONS,
+  cashier: ["active_orders", "table_occupancy"],
+};
+
+function widgetsForRole(role) {
+  const access = WIDGET_ACCESS[role];
+  if (access === undefined) return OPERATIONS; // unknown role -> safest minimal set
+  return access === null ? ALL_WIDGETS : access;
 }
 
-// --- Combined summary: fan out the visible widgets concurrently --------------
+function runWidget(name, boundary) {
+  switch (name) {
+    case "active_orders": return activeOrders();
+    case "table_occupancy": return tableOccupancy();
+    case "low_stock_items": return lowStock();
+    case "sales_overview": return salesOverview(boundary);
+    case "monthly_expenses": return monthlyExpenses();
+    case "purchase_summary": return purchaseSummary(boundary);
+    case "profit_overview": return profit(boundary);
+    case "supplier_summary": return supplierSummary(boundary);
+    default: return Promise.resolve(null);
+  }
+}
+
+// --- Combined summary: fan out the caller's visible widgets concurrently ------
 async function getSummary(range, role) {
   const boundary = await resolveBoundary(range);
-
-  // Operational widgets — everyone sees these.
-  const tasks = {
-    active_orders: activeOrders(),
-    table_occupancy: tableOccupancy(),
-    low_stock_items: lowStock(),
-  };
-  // Financial widgets — only for finance-facing roles. Omitted entirely (not
-  // just hidden) for chef/waiter, so the numbers never leave the server.
-  if (canSeeFinancials(role)) {
-    tasks.sales_overview = salesOverview(boundary);
-    tasks.monthly_expenses = monthlyExpenses();
-    tasks.purchase_summary = purchaseSummary(boundary);
-    tasks.profit_overview = profit(boundary);
-    tasks.supplier_summary = supplierSummary(boundary);
-  }
-
-  const keys = Object.keys(tasks);
-  const results = await Promise.all(keys.map((k) => tasks[k]));
+  const widgets = widgetsForRole(role);
+  const results = await Promise.all(widgets.map((w) => runWidget(w, boundary)));
   const summary = { range };
-  keys.forEach((k, i) => {
-    summary[k] = results[i];
+  widgets.forEach((w, i) => {
+    summary[w] = results[i];
   });
   return summary;
 }
@@ -297,5 +315,5 @@ module.exports = {
   profit,
   supplierSummary,
   getSummary,
-  canSeeFinancials,
+  widgetsForRole,
 };

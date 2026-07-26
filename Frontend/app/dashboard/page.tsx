@@ -20,7 +20,8 @@ type Summary = {
     average_order_value: number;
     series: { day: string; sales: number; orders: number }[];
   };
-  active_orders: {
+  // Operational widgets — present for everyone except cashier (spec 10 §11.1).
+  active_orders?: {
     active_count: number;
     orders: {
       id: number;
@@ -32,7 +33,7 @@ type Summary = {
       created_at: string;
     }[];
   };
-  table_occupancy: {
+  table_occupancy?: {
     total: number;
     occupied: number;
     available: number;
@@ -40,7 +41,7 @@ type Summary = {
     out_of_service: number;
     occupancy_pct: number | null;
   };
-  low_stock_items: {
+  low_stock_items?: {
     low_stock_count: number;
     items: {
       source: string;
@@ -136,24 +137,35 @@ function BarChart({
   );
 }
 
-// Metric card with a colored accent rail — richer than a plain stat tile.
+// KPI tile: a tinted icon chip carries the color, the value is the hero, the
+// hint sits as a small pill top-right. Less generic than a plain accent rail.
 function Metric({
   label,
   value,
   hint,
-  accent = "bg-zinc-900",
+  icon,
+  tint = "bg-zinc-100 text-zinc-600",
 }: {
   label: string;
   value: React.ReactNode;
   hint?: string;
-  accent?: string;
+  icon: string;
+  tint?: string;
 }) {
   return (
-    <Card className="relative overflow-hidden p-4 pl-5">
-      <span className={`absolute inset-y-0 left-0 w-1.5 ${accent}`} />
-      <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-zinc-950">{value}</p>
-      {hint ? <p className="mt-0.5 text-xs text-zinc-500">{hint}</p> : null}
+    <Card className="group p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+      <div className="flex items-start justify-between gap-2">
+        <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-base ${tint}`}>
+          {icon}
+        </span>
+        {hint ? (
+          <span className="max-w-[60%] truncate rounded-full bg-zinc-50 px-2 py-0.5 text-[10px] font-medium text-zinc-400 group-hover:text-zinc-500">
+            {hint}
+          </span>
+        ) : null}
+      </div>
+      <p className="mt-3 text-2xl font-semibold tracking-tight text-zinc-950">{value}</p>
+      <p className="mt-0.5 text-xs font-medium uppercase tracking-wide text-zinc-400">{label}</p>
     </Card>
   );
 }
@@ -206,6 +218,57 @@ const PO_COLORS: Record<string, string> = {
   cancelled: "#ef4444",
 };
 
+const ORDER_COLORS: Record<string, string> = {
+  open: "#a1a1aa",
+  sent_to_kitchen: "#3b82f6",
+  preparing: "#f59e0b",
+  ready: "#8b5cf6",
+  served: "#06b6d4",
+};
+const ACTIVE_STATUSES = ["open", "sent_to_kitchen", "preparing", "ready", "served"];
+
+// Conic-gradient donut with a legend — used for table occupancy.
+function Donut({
+  segments,
+  centerLabel,
+  centerSub,
+}: {
+  segments: { label: string; value: number; color: string }[];
+  centerLabel: string;
+  centerSub?: string;
+}) {
+  const total = segments.reduce((a, s) => a + s.value, 0) || 1;
+  let acc = 0;
+  const stops = segments
+    .map((s) => {
+      const start = (acc / total) * 100;
+      acc += s.value;
+      const end = (acc / total) * 100;
+      return `${s.color} ${start}% ${end}%`;
+    })
+    .join(", ");
+  return (
+    <div className="flex items-center gap-5">
+      <div className="relative h-32 w-32 shrink-0">
+        <div className="h-full w-full rounded-full" style={{ background: `conic-gradient(${stops})` }} />
+        <div className="absolute inset-[20%] flex flex-col items-center justify-center rounded-full bg-white shadow-inner">
+          <span className="text-xl font-semibold text-zinc-900">{centerLabel}</span>
+          {centerSub ? <span className="text-[10px] uppercase tracking-wide text-zinc-400">{centerSub}</span> : null}
+        </div>
+      </div>
+      <ul className="flex-1 space-y-2 text-sm">
+        {segments.map((s) => (
+          <li key={s.label} className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+            <span className="text-zinc-600">{s.label}</span>
+            <span className="ml-auto font-semibold text-zinc-900">{s.value}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const [range, setRange] = useState<Range>("30d");
@@ -216,9 +279,9 @@ export default function DashboardPage() {
 
   if (!user) return null;
 
-  // Finance-facing roles see the money widgets; chef/waiter see operations only
-  // (spec 10 §11.1). This is UX gating — the backend also omits the data.
-  const canSeeFinancials = ["owner", "manager", "store_manager", "cashier"].includes(user.role);
+  // Only management roles have range-dependent (financial) widgets; the range
+  // switcher is pointless for cashier/chef/waiter. Backend is the real gate.
+  const canSeeFinancials = ["owner", "manager", "store_manager"].includes(user.role);
   const rangeCaption = range === "month" ? "This month" : `Last ${range === "7d" ? "7" : "30"} days`;
 
   return (
@@ -251,67 +314,133 @@ export default function DashboardPage() {
         <ErrorState message={error} onRetry={refetch} />
       ) : data ? (
         <div className="space-y-4">
-          {/* Headline stats — operational first (everyone), then financial */}
+          {/* Headline stats — operational first, then financial (role-gated) */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Metric
-              label="Occupancy"
-              accent="bg-blue-500"
-              value={`${data.table_occupancy.occupancy_pct ?? 0}%`}
-              hint={`${data.table_occupancy.occupied}/${data.table_occupancy.total} tables`}
-            />
-            <Metric
-              label="Active orders"
-              accent="bg-violet-500"
-              value={data.active_orders.active_count}
-              hint="in progress now"
-            />
-            <Metric
-              label="Low stock"
-              accent="bg-red-500"
-              value={data.low_stock_items.low_stock_count}
-              hint="at/below reorder level"
-            />
+            {data.table_occupancy ? (
+              <Metric
+                label="Occupancy"
+                icon="🪑"
+                tint="bg-blue-50 text-blue-600"
+                value={`${data.table_occupancy.occupancy_pct ?? 0}%`}
+                hint={`${data.table_occupancy.occupied}/${data.table_occupancy.total} tables`}
+              />
+            ) : null}
+            {data.active_orders ? (
+              <Metric
+                label="Active orders"
+                icon="🧾"
+                tint="bg-violet-50 text-violet-600"
+                value={data.active_orders.active_count}
+                hint="in progress"
+              />
+            ) : null}
+            {data.low_stock_items ? (
+              <Metric
+                label="Low stock"
+                icon="📦"
+                tint="bg-red-50 text-red-600"
+                value={data.low_stock_items.low_stock_count}
+                hint="below reorder"
+              />
+            ) : null}
             {data.sales_overview ? (
               <>
                 <Metric
                   label="Sales"
-                  accent="bg-emerald-500"
+                  icon="💰"
+                  tint="bg-emerald-50 text-emerald-600"
                   value={formatCurrency(data.sales_overview.total_sales)}
-                  hint={`${data.sales_overview.order_count} paid orders`}
+                  hint={`${data.sales_overview.order_count} paid`}
                 />
                 <Metric
-                  label="Avg order value"
-                  accent="bg-teal-500"
+                  label="Avg order"
+                  icon="🧮"
+                  tint="bg-teal-50 text-teal-600"
                   value={formatCurrency(data.sales_overview.average_order_value)}
-                  hint="per paid order"
+                  hint="per order"
                 />
               </>
             ) : null}
             {data.profit_overview ? (
               <Metric
                 label="Gross profit"
-                accent="bg-green-600"
+                icon="📈"
+                tint="bg-green-50 text-green-600"
                 value={formatCurrency(data.profit_overview.gross_profit)}
                 hint={`${data.profit_overview.margin_pct ?? 0}% margin`}
               />
             ) : null}
             {data.purchase_summary ? (
               <Metric
-                label="Open PO value"
-                accent="bg-amber-500"
+                label="Open POs"
+                icon="🛒"
+                tint="bg-amber-50 text-amber-600"
                 value={formatCurrency(data.purchase_summary.outstanding_value)}
-                hint="ordered, not received"
+                hint="not received"
               />
             ) : null}
             {data.supplier_summary ? (
               <Metric
                 label="Payables"
-                accent="bg-rose-500"
+                icon="💸"
+                tint="bg-rose-50 text-rose-600"
                 value={formatCurrency(data.supplier_summary.outstanding_invoice_total)}
-                hint="unpaid invoices"
+                hint="unpaid"
               />
             ) : null}
           </div>
+
+          {/* Operational charts — floor view (chef/waiter/cashier + management) */}
+          {data.table_occupancy || data.active_orders ? (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {data.table_occupancy ? (
+                <SectionCard title="Table occupancy" icon="🪑">
+                  <Donut
+                    centerLabel={`${data.table_occupancy.occupancy_pct ?? 0}%`}
+                    centerSub="occupied"
+                    segments={[
+                      { label: "Occupied", value: data.table_occupancy.occupied, color: "#f59e0b" },
+                      { label: "Available", value: data.table_occupancy.available, color: "#22c55e" },
+                      { label: "Reserved", value: data.table_occupancy.reserved, color: "#3b82f6" },
+                      { label: "Out of service", value: data.table_occupancy.out_of_service, color: "#ef4444" },
+                    ]}
+                  />
+                </SectionCard>
+              ) : null}
+              {data.active_orders ? (
+                <SectionCard title="Kitchen queue" icon="🍳">
+                  {(() => {
+                    const orders = data.active_orders!.orders;
+                    const rows = ACTIVE_STATUSES.map((st) => ({
+                      st,
+                      n: orders.filter((o) => o.status === st).length,
+                    })).filter((r) => r.n > 0);
+                    const max = Math.max(1, ...rows.map((r) => r.n));
+                    if (rows.length === 0)
+                      return <p className="py-8 text-center text-sm text-zinc-400">No active orders.</p>;
+                    return (
+                      <ul className="space-y-3.5 py-1">
+                        {rows.map(({ st, n }) => (
+                          <li key={st} className="flex items-center gap-3">
+                            <span className="w-32 shrink-0">
+                              <StatusBadge kind="order" value={st} />
+                            </span>
+                            <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-zinc-100">
+                              <div
+                                className="h-full rounded-full"
+                                style={{ width: `${(n / max) * 100}%`, backgroundColor: ORDER_COLORS[st] }}
+                              />
+                            </div>
+                            <span className="w-6 shrink-0 text-right text-sm font-semibold text-zinc-900">{n}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  })()}
+                </SectionCard>
+              ) : null}
+            </div>
+          ) : null}
 
           {/* Sales trend + monthly expenses (financial) */}
           {data.sales_overview && data.monthly_expenses ? (
@@ -359,8 +488,10 @@ export default function DashboardPage() {
           </div>
           ) : null}
 
-          {/* Active orders + low stock (everyone) */}
+          {/* Active orders + low stock tables (floor roles) */}
+          {data.active_orders || data.low_stock_items ? (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {data.active_orders ? (
             <SectionCard title={`Active orders (${data.active_orders.active_count})`} icon="🧾">
               {data.active_orders.orders.length === 0 ? (
                 <p className="py-6 text-center text-sm text-zinc-400">No active orders.</p>
@@ -394,7 +525,9 @@ export default function DashboardPage() {
                 </div>
               )}
             </SectionCard>
+            ) : null}
 
+            {data.low_stock_items ? (
             <SectionCard
               title={`Low stock (${data.low_stock_items.low_stock_count})`}
               icon="📦"
@@ -444,7 +577,9 @@ export default function DashboardPage() {
                 </div>
               )}
             </SectionCard>
+            ) : null}
           </div>
+          ) : null}
 
           {/* Purchase summary + supplier summary (financial) */}
           {data.purchase_summary && data.supplier_summary ? (
