@@ -82,6 +82,19 @@ export default function InvoiceAiPage() {
     }
   }
 
+  async function doRename(id: number, current: string) {
+    const name = window.prompt("Rename file", current);
+    if (name == null) return;
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === current) return;
+    try {
+      await aiApi.patch(`/ai/invoices/imports/${id}`, { original_filename: trimmed });
+      refetch();
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : "Rename failed");
+    }
+  }
+
   async function doDelete(id: number, name: string) {
     if (!confirm(`Delete "${name}"? This removes the uploaded file and its extraction.`)) return;
     try {
@@ -192,7 +205,19 @@ export default function InvoiceAiPage() {
             <tbody>
               {data.data.map((r) => (
                 <tr key={r.id} className="border-b border-zinc-100 hover:bg-zinc-50">
-                  <td className="px-4 py-3 font-medium text-zinc-900">{r.original_filename}</td>
+                  <td className="px-4 py-3 font-medium text-zinc-900">
+                    <span className="inline-flex items-center gap-1.5">
+                      {r.original_filename}
+                      <button
+                        onClick={() => doRename(r.id, r.original_filename)}
+                        className="text-xs text-zinc-400 hover:text-zinc-700"
+                        title="Rename file"
+                        aria-label="Rename file"
+                      >
+                        ✎
+                      </button>
+                    </span>
+                  </td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center gap-1.5">
                       {["queued", "processing", "uploaded"].includes(r.status) ? (

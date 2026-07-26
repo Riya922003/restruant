@@ -23,7 +23,8 @@ class ExtractedData(BaseModel):
 
 
 class PatchImport(BaseModel):
-    extracted_data: ExtractedData
+    extracted_data: ExtractedData | None = None
+    original_filename: str | None = None
 
 
 class ApproveRequest(BaseModel):

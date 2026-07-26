@@ -142,17 +142,37 @@ async def get_file(import_id: int):
 
 
 # --- Correct / reject ----------------------------------------------------------
-async def patch_import(import_id: int, extracted_data: dict, user) -> dict:
+async def patch_import(import_id: int, payload, user) -> dict:
     row = await fetch_one("SELECT status FROM invoice_imports WHERE id = %s", [import_id])
     if not row:
         raise ApiError(404, "Invoice import not found")
-    if row["status"] not in ("extracted", "failed"):
-        raise ApiError(409, "Only extracted or failed imports can be edited")
-    await fetch_one(
-        "UPDATE invoice_imports SET extracted_data = %s WHERE id = %s RETURNING id",
-        [Jsonb(extracted_data), import_id],
-    )
-    await write_audit(user.id, "invoice.corrected", "invoice_import", import_id, None)
+
+    changes = []
+    # Renaming is just a display label, so it is allowed at any status.
+    if payload.original_filename is not None:
+        name = payload.original_filename.strip()
+        if not name:
+            raise ApiError(422, "Filename cannot be empty",
+                           errors=[{"field": "original_filename", "message": "Required"}])
+        await fetch_one(
+            "UPDATE invoice_imports SET original_filename = %s WHERE id = %s RETURNING id",
+            [name, import_id],
+        )
+        changes.append("renamed")
+    # Editing the extraction is only valid before approval/rejection.
+    if payload.extracted_data is not None:
+        if row["status"] not in ("extracted", "failed"):
+            raise ApiError(409, "Only extracted or failed imports can be edited")
+        await fetch_one(
+            "UPDATE invoice_imports SET extracted_data = %s WHERE id = %s RETURNING id",
+            [Jsonb(payload.extracted_data.model_dump()), import_id],
+        )
+        changes.append("corrected")
+
+    if not changes:
+        raise ApiError(422, "Nothing to update")
+    action = "invoice.renamed" if changes == ["renamed"] else "invoice.corrected"
+    await write_audit(user.id, action, "invoice_import", import_id, {"changes": changes})
     return await get_import(import_id)
 
 

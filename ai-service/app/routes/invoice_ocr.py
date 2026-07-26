@@ -78,10 +78,7 @@ async def get_import_file(import_id: int, _user=Depends(_manager)):
 
 @router.patch("/imports/{import_id}")
 async def patch_import(import_id: int, body: PatchImport, user=Depends(_manager)):
-    updated = await invoice_service.patch_import(
-        import_id, body.extracted_data.model_dump(), user
-    )
-    return ok(updated)
+    return ok(await invoice_service.patch_import(import_id, body, user))
 
 
 @router.post("/imports/{import_id}/approve")
