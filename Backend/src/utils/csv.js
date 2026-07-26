@@ -29,4 +29,51 @@ function sendCsv(res, filename, csv) {
   res.send(csv);
 }
 
-module.exports = { toCsv, sendCsv };
+// Parse CSV text into { headers, rows }. rows are objects keyed by the (trimmed)
+// header. Handles a leading BOM, quoted fields with embedded commas/newlines,
+// doubled quotes, and both CRLF and LF line endings. Fully-blank lines are
+// dropped. Missing trailing cells become empty strings.
+function parseCsv(text) {
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+
+  const records = [];
+  let record = [];
+  let field = "";
+  let inQuotes = false;
+  let sawAny = false;
+
+  const endField = () => { record.push(field); field = ""; };
+  const endRecord = () => { endField(); records.push(record); record = []; sawAny = false; };
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; } else { inQuotes = false; }
+      } else {
+        field += c;
+      }
+      continue;
+    }
+    if (c === '"') { inQuotes = true; sawAny = true; continue; }
+    if (c === ",") { endField(); sawAny = true; continue; }
+    if (c === "\r") continue;
+    if (c === "\n") { if (sawAny || field.length) endRecord(); else record = []; continue; }
+    field += c;
+    sawAny = true;
+  }
+  if (sawAny || field.length) endRecord();
+
+  const nonEmpty = records.filter((r) => r.some((cell) => cell.trim() !== ""));
+  if (nonEmpty.length === 0) return { headers: [], rows: [] };
+
+  const headers = nonEmpty[0].map((h) => h.trim());
+  const rows = nonEmpty.slice(1).map((r) => {
+    const obj = {};
+    headers.forEach((h, idx) => { obj[h] = (r[idx] ?? "").trim(); });
+    return obj;
+  });
+  return { headers, rows };
+}
+
+module.exports = { toCsv, sendCsv, parseCsv };

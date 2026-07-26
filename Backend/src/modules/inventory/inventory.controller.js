@@ -1,5 +1,6 @@
 const { asyncHandler } = require("../../utils/async-handler");
 const { ok, created } = require("../../utils/respond");
+const { ApiError } = require("../../utils/api-error");
 const { toCsv, sendCsv } = require("../../utils/csv");
 const { writeAudit } = require("../audit/audit.service");
 const categories = require("./inventory.categories.service");
@@ -76,6 +77,41 @@ const exportProducts = asyncHandler(async (req, res) => {
   sendCsv(res, "products.csv", csv);
 });
 
+// Dry run: validate an uploaded CSV and report the outcome without writing.
+const importProductsPreview = asyncHandler(async (req, res) => {
+  if (!req.file) throw new ApiError(422, "No CSV file uploaded");
+  const report = await products.importValidate(req.file.buffer.toString("utf8"));
+  ok(res, {
+    total: report.total,
+    valid_count: report.valid.length,
+    error_count: report.errors.length,
+    errors: report.errors.slice(0, 200),
+    preview: report.valid.slice(0, 50).map((v) => ({ row: v.row, ...v.data })),
+  });
+});
+
+// Commit: validate then insert all rows in one transaction (all-or-nothing).
+const importProducts = asyncHandler(async (req, res) => {
+  if (!req.file) throw new ApiError(422, "No CSV file uploaded");
+  created(res, await products.importCommit(req.file.buffer.toString("utf8"), req.user));
+});
+
+const productImportTemplate = asyncHandler(async (_req, res) => {
+  const cols = products.IMPORT_COLUMNS.map((k) => ({ key: k, header: k }));
+  const example = [
+    {
+      name: "Basmati Rice 5kg",
+      sku: "RICE-5KG",
+      category: "",
+      unit: "pack",
+      cost_price: "450",
+      current_stock: "20",
+      reorder_level: "5",
+    },
+  ];
+  sendCsv(res, "products-import-template.csv", toCsv(cols, example));
+});
+
 // ---- Warehouses ---------------------------------------------------------
 
 const listWarehouses = asyncHandler(async (req, res) => {
@@ -126,6 +162,9 @@ module.exports = {
   updateProduct,
   removeProduct,
   exportProducts,
+  importProductsPreview,
+  importProducts,
+  productImportTemplate,
   listWarehouses,
   getWarehouse,
   createWarehouse,

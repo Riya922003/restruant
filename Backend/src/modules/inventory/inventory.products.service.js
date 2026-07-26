@@ -2,7 +2,10 @@ const { pool } = require("../../config/database");
 const { ApiError } = require("../../utils/api-error");
 const { getPagination, buildMeta, parseSort } = require("../../utils/pagination");
 const { toNum } = require("../../utils/serialize");
-const { writeAudit } = require("../audit/audit.service");
+const { withTransaction } = require("../../utils/with-transaction");
+const { parseCsv } = require("../../utils/csv");
+const { writeAudit, writeAuditTx } = require("../audit/audit.service");
+const { UNITS } = require("./inventory.validation");
 
 const SORT_WHITELIST = [
   "name",
@@ -232,4 +235,161 @@ async function remove(id, user) {
   return { success: true };
 }
 
-module.exports = { list, getById, create, update, remove, exportRows };
+// --- CSV import ----------------------------------------------------------------
+
+// Accepts both the exported header style ("Cost Price") and plain snake_case, so
+// an exported catalogue can be edited and re-imported without renaming columns.
+const IMPORT_HEADER_MAP = {
+  name: "name",
+  sku: "sku",
+  category: "category",
+  "category name": "category",
+  unit: "unit",
+  "cost price": "cost_price",
+  cost_price: "cost_price",
+  "current stock": "current_stock",
+  current_stock: "current_stock",
+  "reorder level": "reorder_level",
+  reorder_level: "reorder_level",
+};
+
+const IMPORT_COLUMNS = ["name", "sku", "category", "unit", "cost_price", "current_stock", "reorder_level"];
+
+function normalizeImportRow(rawRow) {
+  const out = {};
+  for (const [rawKey, value] of Object.entries(rawRow)) {
+    const field = IMPORT_HEADER_MAP[rawKey.trim().toLowerCase()];
+    if (field && out[field] === undefined) out[field] = value;
+  }
+  return out;
+}
+
+function parseNonNegative(raw, field) {
+  if (raw === undefined || raw === "") return { value: undefined };
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return { error: { field, message: `${field} must be a number >= 0` } };
+  return { value: n };
+}
+
+// Parse + validate every row without writing. Returns the valid rows (ready to
+// insert) and a flat list of per-row errors so the UI can preview the outcome.
+async function importValidate(csvText) {
+  const { rows } = parseCsv(csvText);
+
+  const cats = await pool.query("SELECT id, name FROM product_categories WHERE is_active = true");
+  const catByName = new Map(cats.rows.map((c) => [c.name.trim().toLowerCase(), Number(c.id)]));
+  const existing = await pool.query("SELECT sku FROM products");
+  const existingSkus = new Set(existing.rows.map((r) => String(r.sku).toLowerCase()));
+
+  const seenSkus = new Set();
+  const valid = [];
+  const errors = [];
+
+  rows.forEach((raw, i) => {
+    const rowNumber = i + 2; // +1 header, +1 for 1-based spreadsheet lines
+    const r = normalizeImportRow(raw);
+    const rowErrors = [];
+
+    const sku = (r.sku ?? "").trim();
+    const name = (r.name ?? "").trim();
+    const unit = (r.unit ?? "").trim().toLowerCase();
+
+    if (!sku) rowErrors.push({ field: "sku", message: "sku is required" });
+    else if (sku.length > 100) rowErrors.push({ field: "sku", message: "sku exceeds 100 characters" });
+    if (!name) rowErrors.push({ field: "name", message: "name is required" });
+    else if (name.length > 200) rowErrors.push({ field: "name", message: "name exceeds 200 characters" });
+    if (!unit) rowErrors.push({ field: "unit", message: "unit is required" });
+    else if (!UNITS.includes(unit)) rowErrors.push({ field: "unit", message: `unit must be one of: ${UNITS.join(", ")}` });
+
+    let categoryId = null;
+    const catCell = (r.category ?? "").trim();
+    if (catCell) {
+      const found = catByName.get(catCell.toLowerCase());
+      if (found === undefined) rowErrors.push({ field: "category", message: `category "${catCell}" not found` });
+      else categoryId = found;
+    }
+
+    const cost = parseNonNegative(r.cost_price, "cost_price");
+    if (cost.error) rowErrors.push(cost.error);
+    const stock = parseNonNegative(r.current_stock, "current_stock");
+    if (stock.error) rowErrors.push(stock.error);
+    const reorder = parseNonNegative(r.reorder_level, "reorder_level");
+    if (reorder.error) rowErrors.push(reorder.error);
+
+    if (sku) {
+      const key = sku.toLowerCase();
+      if (existingSkus.has(key)) rowErrors.push({ field: "sku", message: `sku "${sku}" already exists` });
+      else if (seenSkus.has(key)) rowErrors.push({ field: "sku", message: `sku "${sku}" is duplicated in the file` });
+      seenSkus.add(key);
+    }
+
+    if (rowErrors.length) {
+      rowErrors.forEach((e) => errors.push({ row: rowNumber, field: e.field, message: e.message }));
+    } else {
+      valid.push({
+        row: rowNumber,
+        data: {
+          sku,
+          name,
+          unit,
+          category_id: categoryId,
+          cost_price: cost.value,
+          current_stock: stock.value,
+          reorder_level: reorder.value,
+        },
+      });
+    }
+  });
+
+  return { total: rows.length, valid, errors };
+}
+
+// Validate then insert all rows in one transaction. All-or-nothing: if any row is
+// invalid, nothing is written and the errors are returned for the user to fix.
+async function importCommit(csvText, user) {
+  const report = await importValidate(csvText);
+  if (report.errors.length > 0) {
+    throw new ApiError(
+      422,
+      `Import rejected: ${report.errors.length} invalid row(s). Fix them and retry.`,
+      report.errors.map((e) => ({ field: `row ${e.row}${e.field ? ` / ${e.field}` : ""}`, message: e.message }))
+    );
+  }
+  if (report.valid.length === 0) throw new ApiError(422, "The file has no data rows to import");
+
+  try {
+    return await withTransaction(async (client) => {
+      for (const { data } of report.valid) {
+        await client.query(
+          `INSERT INTO products (sku, name, category_id, unit, current_stock, reorder_level, cost_price, is_active)
+           VALUES ($1, $2, $3, $4, COALESCE($5, 0), COALESCE($6, 0), COALESCE($7, 0), true)`,
+          [data.sku, data.name, data.category_id, data.unit, data.current_stock ?? null, data.reorder_level ?? null, data.cost_price ?? null]
+        );
+      }
+      await writeAuditTx(client, {
+        actorUserId: user?.id,
+        action: "product.imported",
+        entityType: "product",
+        metadata: { count: report.valid.length },
+      });
+      return { imported: report.valid.length };
+    });
+  } catch (e) {
+    if (e && e.code === "23505") {
+      throw new ApiError(409, "A SKU in the file was created concurrently. Re-run the import.");
+    }
+    throw e;
+  }
+}
+
+module.exports = {
+  list,
+  getById,
+  create,
+  update,
+  remove,
+  exportRows,
+  importValidate,
+  importCommit,
+  IMPORT_COLUMNS,
+};

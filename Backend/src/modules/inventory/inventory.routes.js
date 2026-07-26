@@ -2,6 +2,7 @@ const { Router } = require("express");
 const { authMiddleware } = require("../../middlewares/auth.middleware");
 const { requireRole } = require("../../middlewares/rbac.middleware");
 const { validate } = require("../../middlewares/validate.middleware");
+const { uploadCsvSingle } = require("../../middlewares/upload.middleware");
 const v = require("./inventory.validation");
 const ctrl = require("./inventory.controller");
 
@@ -22,8 +23,11 @@ function mountInventoryRoutes(parentRouter) {
   const products = Router();
   products.use(authMiddleware);
   products.get("/", requireRole(...WRITE_ROLES), validate(v.productQuerySchema, "query"), ctrl.listProducts);
-  // Static path before /:id so "export" is not captured as an id.
+  // Static paths before /:id so they are not captured as an id.
   products.get("/export", requireRole(...WRITE_ROLES), validate(v.productQuerySchema, "query"), ctrl.exportProducts);
+  products.get("/import/template", requireRole(...WRITE_ROLES), ctrl.productImportTemplate);
+  products.post("/import/preview", requireRole(...WRITE_ROLES), uploadCsvSingle("file"), ctrl.importProductsPreview);
+  products.post("/import", requireRole(...WRITE_ROLES), uploadCsvSingle("file"), ctrl.importProducts);
   products.get("/:id", requireRole(...WRITE_ROLES), ctrl.getProduct);
   products.post("/", requireRole(...WRITE_ROLES), validate(v.productCreateSchema), ctrl.createProduct);
   products.patch("/:id", requireRole(...WRITE_ROLES), validate(v.productUpdateSchema), ctrl.updateProduct);

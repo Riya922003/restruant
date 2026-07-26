@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { api, downloadFile } from "@/lib/api";
+import { api, downloadFile, uploadForm } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { Badge } from "@/components/ui/badge";
 import { Field, Input, Select } from "@/components/ui/field";
@@ -22,6 +22,14 @@ type Product = {
   is_active: boolean;
 };
 type Ref = { id: number; name: string };
+type ImportError = { row: number; field: string | null; message: string };
+type ImportReport = {
+  total: number;
+  valid_count: number;
+  error_count: number;
+  errors: ImportError[];
+  preview: { row: number; sku: string; name: string; unit: string }[];
+};
 
 const UNITS = ["kg", "g", "l", "ml", "unit", "pack", "dozen", "box"];
 const MOVE_TYPES = ["stock_in", "stock_out", "adjustment", "wastage", "transfer"];
@@ -43,6 +51,12 @@ export function ProductsTab({ canManage }: { canManage: boolean }) {
   const [moveForm, setMoveForm] = useState({ movement_type: "stock_in", quantity: "1", reason: "", direction: "increase" });
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const [showImport, setShowImport] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importReport, setImportReport] = useState<ImportReport | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importErr, setImportErr] = useState<string | null>(null);
 
   const catName = (id: number | null) => cats.data?.data.find((c) => c.id === id)?.name ?? "-";
 
@@ -74,6 +88,60 @@ export function ProductsTab({ canManage }: { canManage: boolean }) {
     }
   }
 
+  function openImport() {
+    setImportFile(null);
+    setImportReport(null);
+    setImportErr(null);
+    setShowImport(true);
+  }
+
+  function pickImportFile(f: File | null) {
+    setImportFile(f);
+    setImportReport(null); // a new file invalidates any prior preview
+    setImportErr(null);
+  }
+
+  async function previewImport() {
+    if (!importFile) return;
+    setImporting(true);
+    setImportErr(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", importFile);
+      setImportReport(await uploadForm<ImportReport>("/products/import/preview", fd));
+    } catch (e) {
+      setImportErr(e instanceof Error ? e.message : "Preview failed");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function commitImport() {
+    if (!importFile) return;
+    setImporting(true);
+    setImportErr(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", importFile);
+      const res = await uploadForm<{ imported: number }>("/products/import", fd);
+      setShowImport(false);
+      alert(`Imported ${res.imported} product(s).`);
+      refetch();
+    } catch (e) {
+      setImportErr(e instanceof Error ? e.message : "Import failed");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function downloadTemplate() {
+    try {
+      await downloadFile("/products/import/template", "products-import-template.csv");
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to download template");
+    }
+  }
+
   async function recordMovement() {
     if (!move) return;
     setSaving(true); setErr(null);
@@ -98,6 +166,7 @@ export function ProductsTab({ canManage }: { canManage: boolean }) {
           <input type="checkbox" checked={lowOnly} onChange={(e) => setLowOnly(e.target.checked)} /> Low stock only
         </label>
         <Button variant="secondary" className="ml-auto" onClick={exportCsv}>Export CSV</Button>
+        {canManage ? <Button variant="secondary" onClick={openImport}>Import CSV</Button> : null}
         {canManage ? <Button onClick={() => { setErr(null); setShowCreate(true); }}>New product</Button> : null}
       </div>
 
@@ -167,6 +236,63 @@ export function ProductsTab({ canManage }: { canManage: boolean }) {
           <Field label="Reason"><Input value={moveForm.reason} onChange={(e) => setMoveForm({ ...moveForm, reason: e.target.value })} /></Field>
           {!move?.warehouse_id ? <p className="text-xs text-amber-700">This product has no home warehouse; set one before recording movements.</p> : null}
           {err ? <p className="text-sm text-red-700">{err}</p> : null}
+        </div>
+      </Modal>
+
+      <Modal open={showImport} onClose={() => setShowImport(false)} title="Import products from CSV"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowImport(false)}>Cancel</Button>
+            <Button variant="secondary" onClick={previewImport} disabled={!importFile || importing}>
+              {importing && !importReport ? "Checking..." : "Preview"}
+            </Button>
+            <Button onClick={commitImport} disabled={importing || !importReport || importReport.error_count > 0 || importReport.valid_count === 0}>
+              {importReport && importReport.error_count === 0 ? `Import ${importReport.valid_count}` : "Import"}
+            </Button>
+          </>
+        }>
+        <div className="space-y-3">
+          <p className="text-sm text-zinc-600">
+            Upload a CSV with columns{" "}
+            <span className="font-mono text-xs">name, sku, category, unit, cost_price, current_stock, reorder_level</span>.
+            Unknown categories and existing or duplicate SKUs are rejected. Import is all-or-nothing.
+          </p>
+          <div className="flex items-center gap-3">
+            <input type="file" accept=".csv,text/csv" onChange={(e) => pickImportFile(e.target.files?.[0] ?? null)} className="text-sm" />
+            <button onClick={downloadTemplate} className="text-sm text-blue-600 hover:underline">Download template</button>
+          </div>
+
+          {importReport ? (
+            <div className="rounded-lg border border-zinc-200 p-3">
+              <p className="text-sm">
+                <span className="font-medium">{importReport.total}</span> rows:{" "}
+                <span className="font-medium text-emerald-700">{importReport.valid_count} valid</span>,{" "}
+                <span className={importReport.error_count ? "font-medium text-red-700" : "text-zinc-500"}>
+                  {importReport.error_count} error{importReport.error_count === 1 ? "" : "s"}
+                </span>
+              </p>
+              {importReport.error_count > 0 ? (
+                <>
+                  <ul className="mt-2 max-h-40 space-y-1 overflow-auto text-xs">
+                    {importReport.errors.map((e, i) => (
+                      <li key={i} className="text-red-700">
+                        Row {e.row}{e.field ? ` · ${e.field}` : ""}: {e.message}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 text-xs text-amber-700">Fix these rows and re-upload. Nothing is imported until every row is valid.</p>
+                </>
+              ) : importReport.valid_count > 0 ? (
+                <ul className="mt-2 max-h-40 space-y-1 overflow-auto text-xs text-zinc-600">
+                  {importReport.preview.map((p) => (
+                    <li key={p.row}><span className="font-mono">{p.sku}</span> · {p.name} · {p.unit}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+
+          {importErr ? <p className="text-sm text-red-700">{importErr}</p> : null}
         </div>
       </Modal>
     </div>

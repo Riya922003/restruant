@@ -51,9 +51,43 @@ function uploadSingle(field) {
   };
 }
 
+// CSV upload for data import: kept in memory (req.file.buffer) since we parse it
+// immediately rather than storing it. Browsers report CSV under several mime
+// types, so accept by extension too.
+const csvUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const okExt = /\.csv$/i.test(file.originalname);
+    const okMime = [
+      "text/csv",
+      "application/csv",
+      "application/vnd.ms-excel",
+      "text/plain",
+      "application/octet-stream",
+    ].includes(file.mimetype);
+    if (okExt || okMime) return cb(null, true);
+    return cb(new ApiError(422, "Please upload a .csv file"));
+  },
+});
+
+function uploadCsvSingle(field) {
+  const handler = csvUpload.single(field);
+  return (req, res, next) => {
+    handler(req, res, (err) => {
+      if (!err) return next();
+      if (err instanceof ApiError) return next(err);
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return next(new ApiError(422, "File exceeds 5 MB limit"));
+      }
+      return next(new ApiError(400, "File upload failed"));
+    });
+  };
+}
+
 // Backwards-compatible no-op export kept for any existing import.
 function uploadMiddleware(_req, _res, next) {
   next();
 }
 
-module.exports = { uploadMiddleware, uploadSingle, UPLOAD_DIR };
+module.exports = { uploadMiddleware, uploadSingle, uploadCsvSingle, UPLOAD_DIR };

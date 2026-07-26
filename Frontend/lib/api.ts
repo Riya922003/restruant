@@ -77,6 +77,23 @@ export async function apiList<T>(path: string): Promise<Paginated<T>> {
   return { data: (payload?.data ?? []) as T[], meta: payload?.meta as PageMeta };
 }
 
+// POST a multipart form (e.g. a CSV file upload). Do NOT set Content-Type; the
+// browser adds the multipart boundary. Unwraps { data } like apiFetch.
+export async function uploadForm<T>(path: string, formData: FormData): Promise<T> {
+  const token = getToken();
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+  const payload = await res.json().catch(() => null);
+  if (!res.ok) {
+    if (res.status === 401) setToken(null);
+    throw new ApiError(payload?.message || "Upload failed", res.status, payload?.errors);
+  }
+  return payload?.data as T;
+}
+
 // Trigger a browser download of a file endpoint (e.g. a CSV export), sending the
 // Bearer token and naming the saved file. Mirrors aiDownload in ai-api.ts.
 export async function downloadFile(path: string, filename: string): Promise<void> {
