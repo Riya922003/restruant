@@ -63,6 +63,36 @@ async function getById(id) {
   return mapSupplier(rows[0]);
 }
 
+// Same is_active/search filters as list(), but no pagination. Used by the CSV
+// export endpoint so the exported list mirrors what the user is viewing.
+async function exportRows(query) {
+  const where = [];
+  const params = [];
+  // Default to active only unless "all" (no filter) or "false" is requested.
+  if (query.is_active === "all") {
+    // no filter
+  } else if (query.is_active === "false") {
+    where.push(`is_active = false`);
+  } else {
+    where.push(`is_active = true`);
+  }
+  if (query.search) {
+    params.push(`%${query.search}%`);
+    where.push(
+      `(name ILIKE $${params.length} OR contact_name ILIKE $${params.length} OR email ILIKE $${params.length})`
+    );
+  }
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+  const { rows } = await pool.query(
+    `SELECT name, contact_name, email, phone, address, payment_terms, is_active
+     FROM suppliers ${whereSql}
+     ORDER BY name ASC`,
+    params
+  );
+  return rows;
+}
+
 async function create(body, user) {
   const { rows } = await pool.query(
     `INSERT INTO suppliers (name, contact_name, email, phone, address, payment_terms, is_active)
@@ -132,4 +162,4 @@ async function remove(id, user) {
   return { success: true };
 }
 
-module.exports = { list, getById, create, update, remove };
+module.exports = { list, getById, create, update, remove, exportRows };

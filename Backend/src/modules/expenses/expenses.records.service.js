@@ -123,6 +123,60 @@ async function getById(id) {
   return mapRecord(rows[0]);
 }
 
+// Same filters as list(), but no pagination and joined to category/supplier names
+// so the exported register is human-readable. Used by the CSV export endpoint.
+async function exportRows(query) {
+  const where = [];
+  const params = [];
+
+  if (query.category_id !== undefined) {
+    params.push(query.category_id);
+    where.push(`r.category_id = $${params.length}`);
+  }
+  if (query.supplier_id !== undefined) {
+    params.push(query.supplier_id);
+    where.push(`r.supplier_id = $${params.length}`);
+  }
+  if (query.invoice_id !== undefined) {
+    params.push(query.invoice_id);
+    where.push(`r.invoice_id = $${params.length}`);
+  }
+
+  const hasFromTo = query.from_date !== undefined || query.to_date !== undefined;
+  if (query.from_date !== undefined) {
+    params.push(toDateString(query.from_date));
+    where.push(`r.expense_date >= $${params.length}`);
+  }
+  if (query.to_date !== undefined) {
+    params.push(toDateString(query.to_date));
+    where.push(`r.expense_date <= $${params.length}`);
+  }
+  if (!hasFromTo && query.month) {
+    const [y, m] = query.month.split("-").map(Number);
+    params.push(toDateString(new Date(Date.UTC(y, m - 1, 1))));
+    where.push(`r.expense_date >= $${params.length}`);
+    params.push(toDateString(new Date(Date.UTC(y, m, 1))));
+    where.push(`r.expense_date < $${params.length}`);
+  }
+  if (query.search) {
+    params.push(`%${query.search}%`);
+    where.push(`(r.description ILIKE $${params.length} OR r.reference ILIKE $${params.length})`);
+  }
+
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const { rows } = await pool.query(
+    `SELECT r.expense_date, c.name AS category_name, r.description, r.amount,
+            r.payment_method, s.name AS supplier_name, r.reference
+     FROM expense_records r
+     LEFT JOIN expense_categories c ON c.id = r.category_id
+     LEFT JOIN suppliers s ON s.id = r.supplier_id
+     ${whereSql}
+     ORDER BY r.expense_date DESC, r.id DESC`,
+    params
+  );
+  return rows;
+}
+
 async function create(body, user) {
   await assertCategoryExists(body.category_id);
   if (body.supplier_id !== undefined && body.supplier_id !== null) {
@@ -224,4 +278,4 @@ async function remove(id, user) {
   return { success: true };
 }
 
-module.exports = { list, getById, create, update, remove };
+module.exports = { list, getById, create, update, remove, exportRows };

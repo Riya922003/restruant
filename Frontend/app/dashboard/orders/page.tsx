@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { api } from "@/lib/api";
+import { api, downloadFile } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { useAuth } from "@/lib/auth-context";
 import { StatusBadge } from "@/components/ui/badge";
@@ -99,6 +99,19 @@ export default function OrdersPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
 
+  async function exportCsv() {
+    const q = new URLSearchParams();
+    if (statusFilter) q.set("status", statusFilter);
+    if (paymentFilter) q.set("payment_status", paymentFilter);
+    if (search) q.set("search", search);
+    const qs = q.toString();
+    try {
+      await downloadFile(`/orders/export${qs ? `?${qs}` : ""}`, "orders.csv");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Export failed");
+    }
+  }
+
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
@@ -126,6 +139,7 @@ export default function OrdersPage() {
           ))}
         </Select>
         <Input className="max-w-64" placeholder="Search order #" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Button variant="secondary" className="ml-auto" onClick={exportCsv}>Export CSV</Button>
       </div>
 
       {loading ? (

@@ -22,6 +22,8 @@ function mountInventoryRoutes(parentRouter) {
   const products = Router();
   products.use(authMiddleware);
   products.get("/", requireRole(...WRITE_ROLES), validate(v.productQuerySchema, "query"), ctrl.listProducts);
+  // Static path before /:id so "export" is not captured as an id.
+  products.get("/export", requireRole(...WRITE_ROLES), validate(v.productQuerySchema, "query"), ctrl.exportProducts);
   products.get("/:id", requireRole(...WRITE_ROLES), ctrl.getProduct);
   products.post("/", requireRole(...WRITE_ROLES), validate(v.productCreateSchema), ctrl.createProduct);
   products.patch("/:id", requireRole(...WRITE_ROLES), validate(v.productUpdateSchema), ctrl.updateProduct);

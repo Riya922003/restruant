@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { api } from "@/lib/api";
+import { api, downloadFile } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { useAuth } from "@/lib/auth-context";
 import { Badge } from "@/components/ui/badge";
@@ -89,6 +89,18 @@ export default function SuppliersPage() {
     }
   }
 
+  async function exportCsv() {
+    const q = new URLSearchParams();
+    if (search) q.set("search", search);
+    if (active) q.set("is_active", active);
+    const qs = q.toString();
+    try {
+      await downloadFile(`/suppliers/export${qs ? `?${qs}` : ""}`, "suppliers.csv");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Export failed");
+    }
+  }
+
   async function deactivate(s: Supplier) {
     if (!confirm(`Deactivate ${s.name}?`)) return;
     try {
@@ -119,6 +131,9 @@ export default function SuppliersPage() {
           <option value="false">Inactive</option>
           <option value="all">All</option>
         </Select>
+        <Button variant="secondary" className="ml-auto" onClick={exportCsv}>
+          Export CSV
+        </Button>
       </div>
 
       {loading ? (

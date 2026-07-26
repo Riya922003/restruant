@@ -102,6 +102,48 @@ async function getById(id) {
   return mapProduct(rows[0]);
 }
 
+// Same filters as list(), but no pagination and joined to the category name
+// so the exported catalogue is human-readable. Used by the CSV export endpoint.
+async function exportRows(query) {
+  const where = [];
+  const params = [];
+  if (query.is_active !== "all") {
+    params.push(query.is_active === "false" ? false : true);
+    where.push(`p.is_active = $${params.length}`);
+  }
+  if (query.search) {
+    params.push(`%${query.search}%`);
+    where.push(`(p.sku ILIKE $${params.length} OR p.name ILIKE $${params.length})`);
+  }
+  if (query.category_id) {
+    params.push(query.category_id);
+    where.push(`p.category_id = $${params.length}`);
+  }
+  if (query.supplier_id) {
+    params.push(query.supplier_id);
+    where.push(`p.supplier_id = $${params.length}`);
+  }
+  if (query.warehouse_id) {
+    params.push(query.warehouse_id);
+    where.push(`p.warehouse_id = $${params.length}`);
+  }
+  if (query.low_stock === "true") {
+    where.push("p.current_stock <= p.reorder_level");
+  }
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+  const { rows } = await pool.query(
+    `SELECT p.name, p.sku, c.name AS category_name, p.unit, p.cost_price,
+            p.current_stock, p.reorder_level, p.is_active
+     FROM products p
+     LEFT JOIN product_categories c ON c.id = p.category_id
+     ${whereSql}
+     ORDER BY p.name ASC, p.id ASC`,
+    params
+  );
+  return rows;
+}
+
 async function create(body, user) {
   await validateReferences(body);
 
@@ -190,4 +232,4 @@ async function remove(id, user) {
   return { success: true };
 }
 
-module.exports = { list, getById, create, update, remove };
+module.exports = { list, getById, create, update, remove, exportRows };

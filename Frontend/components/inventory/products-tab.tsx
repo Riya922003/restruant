@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { api } from "@/lib/api";
+import { api, downloadFile } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { Badge } from "@/components/ui/badge";
 import { Field, Input, Select } from "@/components/ui/field";
@@ -62,6 +62,18 @@ export function ProductsTab({ canManage }: { canManage: boolean }) {
     } catch (e) { setErr(e instanceof Error ? e.message : "Failed"); } finally { setSaving(false); }
   }
 
+  async function exportCsv() {
+    const q = new URLSearchParams();
+    if (search) q.set("search", search);
+    if (lowOnly) q.set("low_stock", "true");
+    const qs = q.toString();
+    try {
+      await downloadFile(`/products/export${qs ? `?${qs}` : ""}`, "products.csv");
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Export failed");
+    }
+  }
+
   async function recordMovement() {
     if (!move) return;
     setSaving(true); setErr(null);
@@ -85,7 +97,8 @@ export function ProductsTab({ canManage }: { canManage: boolean }) {
         <label className="flex items-center gap-2 text-sm text-zinc-600">
           <input type="checkbox" checked={lowOnly} onChange={(e) => setLowOnly(e.target.checked)} /> Low stock only
         </label>
-        {canManage ? <Button className="ml-auto" onClick={() => { setErr(null); setShowCreate(true); }}>New product</Button> : null}
+        <Button variant="secondary" className="ml-auto" onClick={exportCsv}>Export CSV</Button>
+        {canManage ? <Button onClick={() => { setErr(null); setShowCreate(true); }}>New product</Button> : null}
       </div>
 
       {loading ? <LoadingState /> : error ? <ErrorState message={error} onRetry={refetch} /> : !data || data.data.length === 0 ? (

@@ -17,6 +17,8 @@ function mountPurchasesRoutes(parentRouter) {
   router.use(authMiddleware);
 
   router.get("/", requireRole("manager", "store_manager"), validate(querySchema, "query"), ctrl.list);
+  // Static path before /:id so "export" is not captured as an id.
+  router.get("/export", requireRole("manager", "store_manager"), validate(querySchema, "query"), ctrl.exportPurchases);
   router.get("/:id", requireRole("manager", "store_manager"), ctrl.getById);
   router.post("/", requireRole("manager", "store_manager"), validate(createSchema), ctrl.create);
   router.patch("/:id", requireRole("manager", "store_manager"), validate(updateSchema), ctrl.update);

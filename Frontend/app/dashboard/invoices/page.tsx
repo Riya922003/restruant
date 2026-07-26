@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { api, API_BASE_URL, getToken } from "@/lib/api";
+import { api, API_BASE_URL, getToken, downloadFile } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { useAuth } from "@/lib/auth-context";
 import { StatusBadge } from "@/components/ui/badge";
@@ -67,6 +67,9 @@ export default function InvoicesPage() {
           {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
         </Select>
         <Input className="max-w-64" placeholder="Search invoice #" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Button variant="secondary" className="ml-auto" onClick={exportCsv}>
+          Export CSV
+        </Button>
       </div>
 
       {loading ? <LoadingState /> : error ? <ErrorState message={error} onRetry={refetch} /> : !data || data.data.length === 0 ? (
@@ -124,6 +127,18 @@ export default function InvoicesPage() {
 
   async function openDetail(id: number) {
     setDetail(await api.get<Invoice>(`/supplier-invoices/${id}`));
+  }
+
+  async function exportCsv() {
+    const q = new URLSearchParams();
+    if (status) q.set("status", status);
+    if (search) q.set("search", search);
+    const qs = q.toString();
+    try {
+      await downloadFile(`/supplier-invoices/export${qs ? `?${qs}` : ""}`, "supplier-invoices.csv");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Export failed");
+    }
   }
 }
 

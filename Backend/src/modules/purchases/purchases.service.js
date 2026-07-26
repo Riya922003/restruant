@@ -142,6 +142,42 @@ async function list(query) {
   return { rows: rowsResult.rows.map(mapPo), meta: buildMeta(page, limit, total) };
 }
 
+// Same filters as list(), but no pagination and joined to supplier/warehouse
+// names so the exported register is human-readable. Used by the CSV export endpoint.
+async function exportRows(query) {
+  const where = [];
+  const params = [];
+  if (query.supplier_id) {
+    params.push(query.supplier_id);
+    where.push(`po.supplier_id = $${params.length}`);
+  }
+  if (query.warehouse_id) {
+    params.push(query.warehouse_id);
+    where.push(`po.warehouse_id = $${params.length}`);
+  }
+  if (query.status) {
+    params.push(query.status);
+    where.push(`po.status = $${params.length}`);
+  }
+  if (query.search) {
+    params.push(`%${query.search}%`);
+    where.push(`(po.po_number ILIKE $${params.length} OR po.notes ILIKE $${params.length})`);
+  }
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+  const { rows } = await pool.query(
+    `SELECT po.po_number, s.name AS supplier_name, w.name AS warehouse_name, po.status,
+            po.order_date, po.expected_date, po.received_date, po.subtotal, po.tax, po.total
+     FROM purchase_orders po
+     LEFT JOIN suppliers s ON s.id = po.supplier_id
+     LEFT JOIN warehouses w ON w.id = po.warehouse_id
+     ${whereSql}
+     ORDER BY po.created_at DESC, po.id DESC`,
+    params
+  );
+  return rows;
+}
+
 async function getById(id) {
   return assemble(pool, id);
 }
@@ -419,6 +455,7 @@ async function remove(id) {
 module.exports = {
   list,
   getById,
+  exportRows,
   create,
   updateHeader,
   addItem,

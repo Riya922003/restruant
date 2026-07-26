@@ -77,6 +77,28 @@ export async function apiList<T>(path: string): Promise<Paginated<T>> {
   return { data: (payload?.data ?? []) as T[], meta: payload?.meta as PageMeta };
 }
 
+// Trigger a browser download of a file endpoint (e.g. a CSV export), sending the
+// Bearer token and naming the saved file. Mirrors aiDownload in ai-api.ts.
+export async function downloadFile(path: string, filename: string): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    if (res.status === 401) setToken(null);
+    const payload = await res.json().catch(() => null);
+    throw new ApiError(payload?.message || "Download failed", res.status);
+  }
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export const api = {
   get: <T>(path: string) => apiFetch<T>(path),
   list: <T>(path: string) => apiList<T>(path),

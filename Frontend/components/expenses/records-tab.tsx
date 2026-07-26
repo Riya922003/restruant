@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { api } from "@/lib/api";
+import { api, downloadFile } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { Field, Input, Textarea, Select } from "@/components/ui/field";
 import { Button, Card, EmptyState, ErrorState, LoadingState, Modal, StatCard } from "@/components/ui/primitives";
@@ -105,6 +105,20 @@ export function RecordsTab({ canWrite, canDelete }: { canWrite: boolean; canDele
     }
   }
 
+  async function exportCsv() {
+    const q = new URLSearchParams();
+    if (categoryId) q.set("category_id", categoryId);
+    if (fromDate) q.set("from_date", fromDate);
+    if (toDate) q.set("to_date", toDate);
+    if (search) q.set("search", search);
+    const qs = q.toString();
+    try {
+      await downloadFile(`/expense-records/export${qs ? `?${qs}` : ""}`, "expense-register.csv");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Export failed");
+    }
+  }
+
   async function remove(r: ExpenseRecord) {
     if (!confirm("Delete this expense record?")) return;
     try {
@@ -134,8 +148,11 @@ export function RecordsTab({ canWrite, canDelete }: { canWrite: boolean; canDele
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+        <Button variant="secondary" className="ml-auto" onClick={exportCsv}>
+          Export CSV
+        </Button>
         {canWrite ? (
-          <Button className="ml-auto" onClick={openCreate}>
+          <Button onClick={openCreate}>
             New expense
           </Button>
         ) : null}

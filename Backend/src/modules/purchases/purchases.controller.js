@@ -1,10 +1,37 @@
 const { asyncHandler } = require("../../utils/async-handler");
 const { ok, created } = require("../../utils/respond");
+const { toCsv, sendCsv } = require("../../utils/csv");
+const { writeAudit } = require("../audit/audit.service");
 const svc = require("./purchases.service");
+
+const EXPORT_COLUMNS = [
+  { key: "po_number", header: "PO Number" },
+  { key: "supplier_name", header: "Supplier" },
+  { key: "warehouse_name", header: "Warehouse" },
+  { key: "status", header: "Status" },
+  { key: "order_date", header: "Order Date" },
+  { key: "expected_date", header: "Expected Date" },
+  { key: "received_date", header: "Received Date" },
+  { key: "subtotal", header: "Subtotal" },
+  { key: "tax", header: "Tax" },
+  { key: "total", header: "Total" },
+];
 
 const list = asyncHandler(async (req, res) => {
   const { rows, meta } = await svc.list(req.query);
   ok(res, rows, meta);
+});
+
+const exportPurchases = asyncHandler(async (req, res) => {
+  const rows = await svc.exportRows(req.query);
+  const csv = toCsv(EXPORT_COLUMNS, rows);
+  await writeAudit({
+    actorUserId: req.user?.id,
+    action: "purchase_order.exported",
+    entityType: "purchase_order",
+    metadata: { count: rows.length, format: "csv" },
+  });
+  sendCsv(res, "purchase-orders.csv", csv);
 });
 
 const getById = asyncHandler(async (req, res) => {
@@ -39,4 +66,4 @@ const remove = asyncHandler(async (req, res) => {
   ok(res, await svc.remove(req.params.id));
 });
 
-module.exports = { list, getById, create, update, addItem, updateItem, removeItem, receive, remove };
+module.exports = { list, exportPurchases, getById, create, update, addItem, updateItem, removeItem, receive, remove };

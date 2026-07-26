@@ -1,9 +1,22 @@
 const { asyncHandler } = require("../../utils/async-handler");
 const { ok, created } = require("../../utils/respond");
+const { toCsv, sendCsv } = require("../../utils/csv");
+const { writeAudit } = require("../audit/audit.service");
 const categories = require("./inventory.categories.service");
 const products = require("./inventory.products.service");
 const warehouses = require("./inventory.warehouses.service");
 const movements = require("./inventory.movements.service");
+
+const PRODUCT_EXPORT_COLUMNS = [
+  { key: "name", header: "Name" },
+  { key: "sku", header: "SKU" },
+  { key: "category_name", header: "Category" },
+  { key: "unit", header: "Unit" },
+  { key: "cost_price", header: "Cost Price" },
+  { key: "current_stock", header: "Current Stock" },
+  { key: "reorder_level", header: "Reorder Level" },
+  { key: "is_active", header: "Active" },
+];
 
 // ---- Product categories -------------------------------------------------
 
@@ -49,6 +62,18 @@ const updateProduct = asyncHandler(async (req, res) => {
 
 const removeProduct = asyncHandler(async (req, res) => {
   ok(res, await products.remove(req.params.id, req.user));
+});
+
+const exportProducts = asyncHandler(async (req, res) => {
+  const rows = await products.exportRows(req.query);
+  const csv = toCsv(PRODUCT_EXPORT_COLUMNS, rows);
+  await writeAudit({
+    actorUserId: req.user?.id,
+    action: "product.exported",
+    entityType: "product",
+    metadata: { count: rows.length, format: "csv" },
+  });
+  sendCsv(res, "products.csv", csv);
 });
 
 // ---- Warehouses ---------------------------------------------------------
@@ -100,6 +125,7 @@ module.exports = {
   createProduct,
   updateProduct,
   removeProduct,
+  exportProducts,
   listWarehouses,
   getWarehouse,
   createWarehouse,

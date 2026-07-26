@@ -13,6 +13,8 @@ function mountOrdersRoutes(parentRouter) {
   router.use(authMiddleware);
 
   router.get("/", requireRole(...READ_ROLES), validate(v.querySchema, "query"), ctrl.list);
+  // Static path before /:id so "export" is not captured as an id.
+  router.get("/export", requireRole(...READ_ROLES), validate(v.querySchema, "query"), ctrl.exportOrders);
   router.get("/:id", requireRole(...READ_ROLES), ctrl.getById);
   router.post("/", requireRole(...WAITER_WRITE), validate(v.createSchema), ctrl.create);
   router.patch("/:id", requireRole(...WAITER_WRITE), validate(v.headerUpdateSchema), ctrl.updateHeader);

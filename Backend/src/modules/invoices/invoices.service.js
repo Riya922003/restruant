@@ -156,6 +156,45 @@ async function getById(id) {
   return assemble(pool, id);
 }
 
+// Same filters as list(), but no pagination and joined to the supplier name so
+// the exported list is human-readable. Used by the CSV export endpoint.
+async function exportRows(query) {
+  const where = [];
+  const params = [];
+  if (query.supplier_id) {
+    params.push(query.supplier_id);
+    where.push(`i.supplier_id = $${params.length}`);
+  }
+  if (query.status) {
+    params.push(query.status);
+    where.push(`i.status = $${params.length}`);
+  }
+  if (query.from_date) {
+    params.push(toDateString(query.from_date));
+    where.push(`i.invoice_date >= $${params.length}`);
+  }
+  if (query.to_date) {
+    params.push(toDateString(query.to_date));
+    where.push(`i.invoice_date <= $${params.length}`);
+  }
+  if (query.search) {
+    params.push(`%${query.search}%`);
+    where.push(`(i.invoice_number ILIKE $${params.length} OR i.notes ILIKE $${params.length})`);
+  }
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+  const { rows } = await pool.query(
+    `SELECT i.invoice_number, s.name AS supplier_name, i.invoice_date, i.due_date,
+            i.subtotal, i.tax, i.total, i.status
+     FROM supplier_invoices i
+     LEFT JOIN suppliers s ON s.id = i.supplier_id
+     ${whereSql}
+     ORDER BY i.invoice_date DESC, i.id DESC`,
+    params
+  );
+  return rows;
+}
+
 async function create(body, user) {
   return withTransaction(async (client) => {
     await assertSupplierExists(client, body.supplier_id);
@@ -355,6 +394,7 @@ async function remove(id, user) {
 module.exports = {
   list,
   getById,
+  exportRows,
   create,
   update,
   setStatus,

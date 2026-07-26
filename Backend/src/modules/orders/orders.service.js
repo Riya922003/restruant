@@ -155,6 +155,38 @@ async function list(query) {
   return { rows: rowsResult.rows.map(mapOrder), meta: buildMeta(page, limit, total) };
 }
 
+// Same status/payment/search filters as list(), but no pagination. Exports the
+// order header row only (no line items). Used by the CSV export endpoint.
+async function exportRows(query) {
+  const where = [];
+  const params = [];
+  if (query.status) {
+    const statuses = query.status.split(",").map((s) => s.trim()).filter((s) => ORDER_STATUSES.includes(s));
+    if (statuses.length) {
+      params.push(statuses);
+      where.push(`status = ANY($${params.length}::order_status[])`);
+    }
+  }
+  if (query.payment_status) {
+    params.push(query.payment_status);
+    where.push(`payment_status = $${params.length}`);
+  }
+  if (query.search) {
+    params.push(`%${query.search}%`);
+    where.push(`order_number ILIKE $${params.length}`);
+  }
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+  const { rows } = await pool.query(
+    `SELECT order_number, order_type, status, table_id, subtotal, tax, discount, total,
+            payment_status, payment_method, created_at
+     FROM orders ${whereSql}
+     ORDER BY created_at DESC, id DESC`,
+    params
+  );
+  return rows;
+}
+
 async function getById(id) {
   return assemble(pool, id);
 }
@@ -401,6 +433,7 @@ async function cancel(id, user) {
 module.exports = {
   list,
   getById,
+  exportRows,
   create,
   updateHeader,
   transitionStatus,
