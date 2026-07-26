@@ -26,6 +26,9 @@ ai-service/.uploads/
 # internal planning specs (not shipped in the repo)
 phases/
 
+# Claude Code local tooling files (kept locally, not shipped)
+CLAUDE.md
+
 # local review screenshots
 /*.png
 
