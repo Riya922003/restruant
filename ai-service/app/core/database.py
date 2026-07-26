@@ -73,6 +73,20 @@ async def fetch_one(sql: str, params=None) -> dict | None:
     return rows[0] if rows else None
 
 
+def _txn_sync(fn):
+    assert _pool is not None, "Database pool is not initialized"
+    # psycopg3 commits at block exit, rolls back on exception. fn gets the conn
+    # and should use dict_row cursors. Used for the multi-statement approve flow.
+    with _pool.connection() as conn:
+        return fn(conn)
+
+
+async def run_txn(fn):
+    """Run fn(conn) inside one transaction in a worker thread. Commit on success,
+    rollback on exception (Phase 1 invoice invariants must hold atomically)."""
+    return await asyncio.to_thread(_txn_sync, fn)
+
+
 @contextmanager
 def get_sync_connection() -> Iterator[psycopg.Connection]:
     """Standalone synchronous connection for the RQ worker (spec 03), which runs in

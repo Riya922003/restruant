@@ -1,4 +1,5 @@
 import logging
+import os
 
 import cloudinary
 import cloudinary.uploader
@@ -18,7 +19,10 @@ def configure_cloudinary() -> None:
     if not settings.cloudinary_url:
         logger.warning("CLOUDINARY_URL not set; invoice uploads will use local fallback")
         return
-    cloudinary.config(cloudinary_url=settings.cloudinary_url, secure=True)
+    # The SDK parses CLOUDINARY_URL from the environment; passing it as a config
+    # kwarg does not populate cloud_name/api_key. Set env, then configure.
+    os.environ["CLOUDINARY_URL"] = settings.cloudinary_url
+    cloudinary.config(secure=True)
     _configured = True
     logger.info("Cloudinary configured")
 

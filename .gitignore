@@ -21,10 +21,16 @@ npm-debug.log*
 # uploads
 Backend/src/uploads/*
 !Backend/src/uploads/.gitkeep
+ai-service/.uploads/
 
 # internal planning specs (not shipped in the repo)
 phases/
 
 # local review screenshots
 /*.png
+
+# lockfiles: cross-platform native binaries (lightningcss/oxide) break when a
+# Windows-generated lock drives a Linux CI install, so let each platform resolve
+# fresh. Regenerate + commit intentionally if you want reproducible builds.
+package-lock.json
 
