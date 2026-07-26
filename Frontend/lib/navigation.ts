@@ -21,6 +21,8 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Invoices", href: "/dashboard/invoices", roles: ["manager", "store_manager"] },
   { label: "Expenses", href: "/dashboard/expenses", roles: ["manager", "store_manager", "cashier"] },
   { label: "Staff", href: "/dashboard/staff", roles: ["manager"] },
+  { label: "AI Insights", href: "/dashboard/ai-insights", roles: ["manager", "store_manager", "chef"] },
+  { label: "Invoice AI", href: "/dashboard/invoice-ai", roles: ["manager", "store_manager"] },
 ];
 
 export function navForRole(role: UserRole): NavItem[] {
