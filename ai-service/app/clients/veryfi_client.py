@@ -1,8 +1,17 @@
 import logging
+import os
+import tempfile
 
 from app.core.config import get_settings
 
 logger = logging.getLogger("ai-service")
+
+_MIME_EXT = {
+    "application/pdf": ".pdf",
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/webp": ".webp",
+}
 
 
 def _client():
@@ -21,18 +30,22 @@ def _client():
 def process_document(file_bytes: bytes, filename: str, mime_type: str) -> dict:
     """Send an invoice (PDF or image) to Veryfi and return its raw structured JSON.
 
-    Used by the invoice worker (spec 03). Raises on failure so the worker can mark
-    the import as failed. Never logs credentials.
+    The SDK reads from a file path, so we stage the bytes in a temp file and remove
+    it afterwards. Used by the invoice worker (spec 03). Raises on failure so the
+    worker marks the import failed. Never logs credentials.
     """
     settings = get_settings()
     if not settings.veryfi_api_key:
         raise RuntimeError("Veryfi is not configured")
 
-    import base64
-
-    client = _client()
-    encoded = base64.b64encode(file_bytes).decode("ascii")
-    return client.process_document_base64string(
-        base64_encoded_string=encoded,
-        file_name=filename,
-    )
+    suffix = os.path.splitext(filename)[1] or _MIME_EXT.get(mime_type, "")
+    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+    try:
+        tmp.write(file_bytes)
+        tmp.close()  # close so Veryfi can reopen the path (required on Windows)
+        return _client().process_document(tmp.name)
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except OSError:
+            pass
