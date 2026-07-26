@@ -5,13 +5,23 @@ import { aiApi } from "@/lib/ai-api";
 import { useApi } from "@/lib/use-api";
 import { formatCurrency } from "@/lib/formatters";
 import { Card } from "@/components/ui/primitives";
-import { RiskPill } from "@/components/ai/recommendation-panel";
 import type { PricingResult, ShortageResult } from "@/types/ai";
 
 type Cached<T> = { result: T; generated_at: string };
 type DashboardInsights = {
   shortage_prediction?: Cached<ShortageResult>;
   pricing?: Cached<PricingResult>;
+};
+
+const RISK_DOT: Record<string, string> = {
+  high: "bg-red-500",
+  medium: "bg-amber-500",
+  low: "bg-emerald-500",
+};
+const RISK_PILL: Record<string, string> = {
+  high: "bg-red-100 text-red-700",
+  medium: "bg-amber-100 text-amber-800",
+  low: "bg-emerald-100 text-emerald-700",
 };
 
 function ago(iso: string): string {
@@ -33,81 +43,129 @@ export function DashboardInsightsCard() {
   const shortage = data?.shortage_prediction;
   const pricing = data?.pricing;
   const atRisk = shortage?.result.at_risk ?? [];
-  const flagged = (pricing?.result.suggestions ?? []).filter(
-    (s) => Math.abs(s.suggested_price - s.current_price) >= 0.01,
-  );
+
+  // Only surface pricing changes that actually matter (>= Rs.1 and >= 1% of price),
+  // ranked by impact. The model often echoes near-identical prices, which is noise.
+  const reprices = (pricing?.result.suggestions ?? [])
+    .map((s) => ({ ...s, delta: s.suggested_price - s.current_price }))
+    .filter((s) => Math.abs(s.delta) >= Math.max(1, s.current_price * 0.01))
+    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+
   const hasAny = Boolean(shortage || pricing);
 
   return (
-    <Card className="p-5">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-100 text-base">🤖</span>
-          <h2 className="text-sm font-semibold text-zinc-950">AI insights</h2>
+    <Card className="overflow-hidden">
+      <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-3.5">
+        <div className="flex items-center gap-2.5">
+          <span
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-base text-white"
+            style={{ backgroundImage: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
+          >
+            ✨
+          </span>
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-950">AI insights</h2>
+            <p className="text-[11px] text-zinc-400">Cached from your last run</p>
+          </div>
         </div>
-        <Link href="/dashboard/ai-insights" className="text-xs font-medium text-zinc-600 hover:text-zinc-950">
+        <Link
+          href="/dashboard/ai-insights"
+          className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:border-zinc-300 hover:text-zinc-900"
+        >
           Open AI Insights →
         </Link>
       </div>
 
       {!hasAny ? (
-        <p className="py-4 text-sm text-zinc-500">
-          No insights generated yet.{" "}
-          <Link href="/dashboard/ai-insights" className="font-medium text-zinc-800 underline">
-            Generate them
-          </Link>{" "}
-          to see cached highlights here.
-        </p>
+        <div className="px-5 py-6 text-center">
+          <p className="text-sm text-zinc-500">
+            No insights generated yet.{" "}
+            <Link href="/dashboard/ai-insights" className="font-medium text-zinc-800 underline">
+              Generate them
+            </Link>{" "}
+            to see highlights here.
+          </p>
+        </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid divide-y divide-zinc-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+          {/* Shortages */}
           {shortage ? (
-            <div>
-              <div className="mb-1.5 flex items-baseline justify-between">
-                <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Predicted shortages</p>
-                <span className="text-[11px] text-zinc-400">{ago(shortage.generated_at)}</span>
-              </div>
+            <section className="px-5 py-4">
+              <SectionHead icon="📉" label="Predicted shortages" when={ago(shortage.generated_at)} />
               {atRisk.length === 0 ? (
-                <p className="text-sm text-zinc-500">No shortages predicted.</p>
+                <Positive text="No shortages predicted." />
               ) : (
-                <ul className="space-y-1.5">
+                <ul className="mt-3 space-y-2.5">
                   {atRisk.slice(0, 3).map((r) => (
-                    <li key={r.ingredient_id} className="flex items-center justify-between text-sm">
-                      <span className="text-zinc-800">{r.name}</span>
-                      <span className="flex items-center gap-2 text-zinc-500">
-                        {r.days_until_shortage != null ? `${r.days_until_shortage}d` : ""}
-                        <RiskPill level={r.risk} />
+                    <li key={r.ingredient_id} className="flex items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className={`h-2 w-2 shrink-0 rounded-full ${RISK_DOT[r.risk] ?? RISK_DOT.low}`} />
+                        <span className="truncate text-sm font-medium text-zinc-800">{r.name}</span>
+                      </span>
+                      <span className="flex shrink-0 items-center gap-2">
+                        {r.days_until_shortage != null ? (
+                          <span className="text-xs tabular-nums text-zinc-500">in {r.days_until_shortage}d</span>
+                        ) : null}
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium capitalize ${RISK_PILL[r.risk] ?? RISK_PILL.low}`}>
+                          {r.risk}
+                        </span>
                       </span>
                     </li>
                   ))}
+                  {atRisk.length > 3 ? (
+                    <li className="pt-0.5 text-xs text-zinc-400">+{atRisk.length - 3} more at risk</li>
+                  ) : null}
                 </ul>
               )}
-            </div>
+            </section>
           ) : null}
 
+          {/* Pricing */}
           {pricing ? (
-            <div>
-              <div className="mb-1.5 flex items-baseline justify-between">
-                <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Menu pricing</p>
-                <span className="text-[11px] text-zinc-400">{ago(pricing.generated_at)}</span>
-              </div>
-              <p className="mb-1.5 text-sm text-zinc-600">
-                <span className="font-semibold text-zinc-900">{flagged.length}</span> item
-                {flagged.length === 1 ? "" : "s"} suggested for repricing
-              </p>
-              <ul className="space-y-1.5">
-                {flagged.slice(0, 3).map((s) => (
-                  <li key={s.menu_item_id} className="flex items-center justify-between text-sm">
-                    <span className="text-zinc-800">{s.name}</span>
-                    <span className="text-zinc-500">
-                      {formatCurrency(s.current_price)} → {formatCurrency(s.suggested_price)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <section className="px-5 py-4">
+              <SectionHead icon="💰" label="Menu pricing" when={ago(pricing.generated_at)} />
+              {reprices.length === 0 ? (
+                <Positive text="Menu is well-priced — no changes needed." />
+              ) : (
+                <ul className="mt-3 space-y-2.5">
+                  {reprices.slice(0, 3).map((s) => (
+                    <li key={s.menu_item_id} className="flex items-center justify-between gap-2">
+                      <span className="truncate text-sm font-medium text-zinc-800">{s.name}</span>
+                      <span className="flex shrink-0 items-center gap-2 text-xs tabular-nums">
+                        <span className="text-zinc-400">{formatCurrency(s.current_price)}</span>
+                        <span className={s.delta > 0 ? "font-semibold text-emerald-600" : "font-semibold text-red-600"}>
+                          {s.delta > 0 ? "↑" : "↓"} {formatCurrency(s.suggested_price)}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                  {reprices.length > 3 ? (
+                    <li className="pt-0.5 text-xs text-zinc-400">+{reprices.length - 3} more suggested</li>
+                  ) : null}
+                </ul>
+              )}
+            </section>
           ) : null}
         </div>
       )}
     </Card>
+  );
+}
+
+function SectionHead({ icon, label, when }: { icon: string; label: string; when: string }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        <span aria-hidden>{icon}</span>
+        {label}
+      </span>
+      <span className="text-[11px] text-zinc-400">{when}</span>
+    </div>
+  );
+}
+
+function Positive({ text }: { text: string }) {
+  return (
+    <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">✅ {text}</p>
   );
 }
