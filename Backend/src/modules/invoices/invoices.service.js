@@ -4,6 +4,7 @@ const { getPagination, buildMeta, parseSort } = require("../../utils/pagination"
 const { withTransaction } = require("../../utils/with-transaction");
 const { toNum } = require("../../utils/serialize");
 const { round2, toDateString, assertInvoiceTransition } = require("./invoices.helpers");
+const { writeAudit, writeAuditTx } = require("../audit/audit.service");
 
 const SORT_WHITELIST = ["invoice_date", "total", "status", "created_at"];
 
@@ -182,6 +183,13 @@ async function create(body, user) {
     }
 
     await recomputeTotals(client, invoiceId);
+    await writeAuditTx(client, {
+      actorUserId: user?.id,
+      action: "supplier_invoice.created",
+      entityType: "supplier_invoice",
+      entityId: invoiceId,
+      metadata: { invoice_number: body.invoice_number },
+    });
     return assemble(client, invoiceId);
   });
 }
@@ -250,6 +258,13 @@ async function update(id, body, user) {
     }
 
     await recomputeTotals(client, id);
+    await writeAuditTx(client, {
+      actorUserId: user?.id,
+      action: "supplier_invoice.updated",
+      entityType: "supplier_invoice",
+      entityId: id,
+      metadata: { changed: Object.keys(body) },
+    });
     return assemble(client, id);
   });
 }
@@ -310,16 +325,30 @@ async function generateExpense(id, body, user) {
       ]
     );
 
+    await writeAuditTx(client, {
+      actorUserId: user?.id,
+      action: "supplier_invoice.expense_generated",
+      entityType: "supplier_invoice",
+      entityId: id,
+      metadata: null,
+    });
+
     return mapExpense(rows[0]);
   });
 }
 
-async function remove(id) {
+async function remove(id, user) {
   const { rows } = await pool.query(
     "DELETE FROM supplier_invoices WHERE id = $1 RETURNING id",
     [id]
   );
   if (!rows[0]) throw new ApiError(404, "Supplier invoice not found");
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "supplier_invoice.deleted",
+    entityType: "supplier_invoice",
+    entityId: id,
+  });
   return { success: true };
 }
 

@@ -2,6 +2,7 @@ const { pool } = require("../../config/database");
 const { ApiError } = require("../../utils/api-error");
 const { getPagination, buildMeta, parseSort } = require("../../utils/pagination");
 const { toNum } = require("../../utils/serialize");
+const { writeAudit } = require("../audit/audit.service");
 
 const SORT_WHITELIST = [
   "name",
@@ -101,7 +102,7 @@ async function getById(id) {
   return mapProduct(rows[0]);
 }
 
-async function create(body) {
+async function create(body, user) {
   await validateReferences(body);
 
   const { rows } = await pool.query(
@@ -122,10 +123,17 @@ async function create(body) {
       body.is_active ?? null,
     ]
   );
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "product.created",
+    entityType: "product",
+    entityId: rows[0].id,
+    metadata: { name: rows[0].name },
+  });
   return mapProduct(rows[0]);
 }
 
-async function update(id, body) {
+async function update(id, body, user) {
   // current_stock is blocked by the schema; validate any provided FKs.
   await validateReferences(body);
 
@@ -155,16 +163,30 @@ async function update(id, body) {
     params
   );
   if (!rows[0]) throw new ApiError(404, "Product not found");
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "product.updated",
+    entityType: "product",
+    entityId: rows[0].id,
+    metadata: { changed: Object.keys(body) },
+  });
   return mapProduct(rows[0]);
 }
 
 // Soft delete: deactivate the product (preserves the movement ledger).
-async function remove(id) {
+async function remove(id, user) {
   const { rows } = await pool.query(
     "UPDATE products SET is_active = false WHERE id = $1 RETURNING id",
     [id]
   );
   if (!rows[0]) throw new ApiError(404, "Product not found");
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "product.deleted",
+    entityType: "product",
+    entityId: rows[0].id,
+    metadata: null,
+  });
   return { success: true };
 }
 

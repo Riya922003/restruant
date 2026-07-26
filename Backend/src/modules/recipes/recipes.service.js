@@ -3,6 +3,7 @@ const { ApiError } = require("../../utils/api-error");
 const { getPagination, buildMeta, parseSort } = require("../../utils/pagination");
 const { withTransaction } = require("../../utils/with-transaction");
 const { toNum } = require("../../utils/serialize");
+const { writeAudit, writeAuditTx } = require("../audit/audit.service");
 
 const SORT_WHITELIST = ["created_at", "yield_servings"];
 
@@ -117,7 +118,7 @@ async function insertLine(client, recipeId, line) {
   );
 }
 
-async function create(body) {
+async function create(body, user) {
   return withTransaction(async (client) => {
     const inserted = await client.query(
       `INSERT INTO recipes (menu_item_id, yield_servings, instructions, prep_time_minutes)
@@ -133,11 +134,19 @@ async function create(body) {
     const row = await fetchRecipe(client, recipeId);
     const recipe = mapRecipe(row);
     recipe.ingredients = await loadLines(client, recipeId);
+
+    await writeAuditTx(client, {
+      actorUserId: user?.id,
+      action: "recipe.created",
+      entityType: "recipe",
+      entityId: recipe.id,
+      metadata: { name: recipe.menu_item_name },
+    });
     return recipe;
   });
 }
 
-async function update(id, body) {
+async function update(id, body, user) {
   const sets = [];
   const params = [];
   for (const key of ["yield_servings", "instructions", "prep_time_minutes"]) {
@@ -154,6 +163,13 @@ async function update(id, body) {
     params
   );
   if (!updated.rows[0]) throw new ApiError(404, "Recipe not found");
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "recipe.updated",
+    entityType: "recipe",
+    entityId: toNum(updated.rows[0].id),
+    metadata: { changed: Object.keys(body) },
+  });
   return getById(id);
 }
 
@@ -209,9 +225,16 @@ async function removeIngredient(id, lineId) {
   return { success: true };
 }
 
-async function remove(id) {
+async function remove(id, user) {
   const deleted = await pool.query("DELETE FROM recipes WHERE id = $1 RETURNING id", [id]);
   if (!deleted.rows[0]) throw new ApiError(404, "Recipe not found");
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "recipe.deleted",
+    entityType: "recipe",
+    entityId: toNum(deleted.rows[0].id),
+    metadata: null,
+  });
   return { success: true };
 }
 

@@ -2,6 +2,7 @@ const { pool } = require("../../config/database");
 const { ApiError } = require("../../utils/api-error");
 const { getPagination, buildMeta, parseSort } = require("../../utils/pagination");
 const { toNum } = require("../../utils/serialize");
+const { writeAudit } = require("../audit/audit.service");
 
 const SORT_WHITELIST = ["name", "type", "created_at", "updated_at"];
 
@@ -57,17 +58,24 @@ async function getById(id) {
   return mapWarehouse(rows[0]);
 }
 
-async function create(body) {
+async function create(body, user) {
   const { rows } = await pool.query(
     `INSERT INTO warehouses (name, location, type, is_active)
      VALUES ($1, $2, COALESCE($3, 'store'), COALESCE($4, true))
      RETURNING *`,
     [body.name, body.location ?? null, body.type ?? null, body.is_active ?? null]
   );
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "warehouse.created",
+    entityType: "warehouse",
+    entityId: rows[0].id,
+    metadata: { name: rows[0].name },
+  });
   return mapWarehouse(rows[0]);
 }
 
-async function update(id, body) {
+async function update(id, body, user) {
   const sets = [];
   const params = [];
   for (const key of ["name", "location", "type", "is_active"]) {
@@ -84,16 +92,30 @@ async function update(id, body) {
     params
   );
   if (!rows[0]) throw new ApiError(404, "Warehouse not found");
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "warehouse.updated",
+    entityType: "warehouse",
+    entityId: rows[0].id,
+    metadata: { changed: Object.keys(body) },
+  });
   return mapWarehouse(rows[0]);
 }
 
 // Soft delete: deactivate the warehouse.
-async function remove(id) {
+async function remove(id, user) {
   const { rows } = await pool.query(
     "UPDATE warehouses SET is_active = false WHERE id = $1 RETURNING id",
     [id]
   );
   if (!rows[0]) throw new ApiError(404, "Warehouse not found");
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "warehouse.deleted",
+    entityType: "warehouse",
+    entityId: rows[0].id,
+    metadata: null,
+  });
   return { success: true };
 }
 

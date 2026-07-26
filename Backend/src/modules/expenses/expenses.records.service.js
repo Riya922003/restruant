@@ -2,6 +2,7 @@ const { pool } = require("../../config/database");
 const { ApiError } = require("../../utils/api-error");
 const { getPagination, buildMeta, parseSort } = require("../../utils/pagination");
 const { toNum } = require("../../utils/serialize");
+const { writeAudit } = require("../audit/audit.service");
 
 const SORT_WHITELIST = ["expense_date", "amount", "created_at"];
 
@@ -148,10 +149,18 @@ async function create(body, user) {
       user.id,
     ]
   );
-  return mapRecord(rows[0]);
+  const record = mapRecord(rows[0]);
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "expense.created",
+    entityType: "expense",
+    entityId: record.id,
+    metadata: record.amount !== null ? { amount: record.amount } : {},
+  });
+  return record;
 }
 
-async function update(id, body) {
+async function update(id, body, user) {
   if (body.category_id !== undefined) await assertCategoryExists(body.category_id);
   if (body.supplier_id !== undefined && body.supplier_id !== null) {
     await assertSupplierExists(body.supplier_id);
@@ -188,15 +197,30 @@ async function update(id, body) {
     params
   );
   if (!rows[0]) throw new ApiError(404, "Expense record not found");
-  return mapRecord(rows[0]);
+  const record = mapRecord(rows[0]);
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "expense.updated",
+    entityType: "expense",
+    entityId: record.id,
+    metadata: { changed: Object.keys(body) },
+  });
+  return record;
 }
 
-async function remove(id) {
+async function remove(id, user) {
   const { rows } = await pool.query(
     "DELETE FROM expense_records WHERE id = $1 RETURNING id",
     [id]
   );
   if (!rows[0]) throw new ApiError(404, "Expense record not found");
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "expense.deleted",
+    entityType: "expense",
+    entityId: toNum(rows[0].id),
+    metadata: null,
+  });
   return { success: true };
 }
 

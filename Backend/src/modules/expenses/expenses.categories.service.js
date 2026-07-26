@@ -2,6 +2,7 @@ const { pool } = require("../../config/database");
 const { ApiError } = require("../../utils/api-error");
 const { getPagination, buildMeta, parseSort } = require("../../utils/pagination");
 const { toNum } = require("../../utils/serialize");
+const { writeAudit } = require("../audit/audit.service");
 
 const SORT_WHITELIST = ["name", "created_at", "updated_at"];
 
@@ -58,17 +59,25 @@ async function getById(id) {
   return mapCategory(rows[0]);
 }
 
-async function create(body) {
+async function create(body, user) {
   const { rows } = await pool.query(
     `INSERT INTO expense_categories (name, description, is_active)
      VALUES ($1, $2, COALESCE($3, true))
      RETURNING *`,
     [body.name, body.description ?? null, body.is_active ?? null]
   );
-  return mapCategory(rows[0]);
+  const category = mapCategory(rows[0]);
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "expense_category.created",
+    entityType: "expense_category",
+    entityId: category.id,
+    metadata: { name: category.name },
+  });
+  return category;
 }
 
-async function update(id, body) {
+async function update(id, body, user) {
   const sets = [];
   const params = [];
   for (const key of ["name", "description", "is_active"]) {
@@ -85,15 +94,30 @@ async function update(id, body) {
     params
   );
   if (!rows[0]) throw new ApiError(404, "Expense category not found");
-  return mapCategory(rows[0]);
+  const category = mapCategory(rows[0]);
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "expense_category.updated",
+    entityType: "expense_category",
+    entityId: category.id,
+    metadata: { changed: Object.keys(body) },
+  });
+  return category;
 }
 
-async function remove(id) {
+async function remove(id, user) {
   const { rows } = await pool.query(
     "UPDATE expense_categories SET is_active = false WHERE id = $1 RETURNING id",
     [id]
   );
   if (!rows[0]) throw new ApiError(404, "Expense category not found");
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "expense_category.deleted",
+    entityType: "expense_category",
+    entityId: toNum(rows[0].id),
+    metadata: null,
+  });
   return { success: true };
 }
 

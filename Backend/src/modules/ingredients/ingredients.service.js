@@ -2,6 +2,7 @@ const { pool } = require("../../config/database");
 const { ApiError } = require("../../utils/api-error");
 const { getPagination, buildMeta, parseSort } = require("../../utils/pagination");
 const { toNum } = require("../../utils/serialize");
+const { writeAudit } = require("../audit/audit.service");
 
 const SORT_WHITELIST = [
   "name",
@@ -81,7 +82,7 @@ async function getById(id) {
   return mapIngredient(rows[0]);
 }
 
-async function create(body) {
+async function create(body, user) {
   if (body.supplier_id !== undefined && body.supplier_id !== null) {
     await assertSupplierExists(body.supplier_id);
   }
@@ -100,10 +101,18 @@ async function create(body) {
       body.is_active ?? null,
     ]
   );
-  return mapIngredient(rows[0]);
+  const ingredient = mapIngredient(rows[0]);
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "ingredient.created",
+    entityType: "ingredient",
+    entityId: ingredient.id,
+    metadata: { name: body.name },
+  });
+  return ingredient;
 }
 
-async function update(id, body) {
+async function update(id, body, user) {
   if (body.supplier_id !== undefined && body.supplier_id !== null) {
     await assertSupplierExists(body.supplier_id);
   }
@@ -132,10 +141,17 @@ async function update(id, body) {
     params
   );
   if (!rows[0]) throw new ApiError(404, "Ingredient not found");
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "ingredient.updated",
+    entityType: "ingredient",
+    entityId: id,
+    metadata: { changed: Object.keys(body) },
+  });
   return mapIngredient(rows[0]);
 }
 
-async function adjustStock(id, delta, _reason, _user) {
+async function adjustStock(id, delta, reason, user) {
   const { rows } = await pool.query(
     `UPDATE ingredients
      SET current_stock = current_stock + $1
@@ -148,15 +164,29 @@ async function adjustStock(id, delta, _reason, _user) {
     if (exists.rows[0]) throw new ApiError(422, "Stock cannot go negative");
     throw new ApiError(404, "Ingredient not found");
   }
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "ingredient.stock_adjusted",
+    entityType: "ingredient",
+    entityId: id,
+    metadata: { delta, reason },
+  });
   return mapIngredient(rows[0]);
 }
 
-async function remove(id) {
+async function remove(id, user) {
   const { rows } = await pool.query(
     "UPDATE ingredients SET is_active = false WHERE id = $1 RETURNING id",
     [id]
   );
   if (!rows[0]) throw new ApiError(404, "Ingredient not found");
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "ingredient.deactivated",
+    entityType: "ingredient",
+    entityId: id,
+    metadata: null,
+  });
   return { success: true };
 }
 

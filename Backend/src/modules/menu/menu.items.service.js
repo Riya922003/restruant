@@ -2,6 +2,7 @@ const { pool } = require("../../config/database");
 const { ApiError } = require("../../utils/api-error");
 const { getPagination, buildMeta, parseSort } = require("../../utils/pagination");
 const { toNum } = require("../../utils/serialize");
+const { writeAudit } = require("../audit/audit.service");
 
 const SORT_WHITELIST = ["name", "price", "created_at"];
 // Chef may only touch availability and prep-facing fields, never price.
@@ -78,7 +79,7 @@ async function getById(id) {
   return mapItem(rows[0]);
 }
 
-async function create(body) {
+async function create(body, user) {
   const { rows } = await pool.query(
     `INSERT INTO menu_items
        (category_id, name, description, price, cost, prep_time_minutes, is_available, image_url)
@@ -95,7 +96,15 @@ async function create(body) {
       body.image_url ?? null,
     ]
   );
-  return mapItem(rows[0]);
+  const item = mapItem(rows[0]);
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "menu_item.created",
+    entityType: "menu_item",
+    entityId: item.id,
+    metadata: { name: item.name },
+  });
+  return item;
 }
 
 async function update(id, body, user) {
@@ -118,7 +127,15 @@ async function update(id, body, user) {
     params
   );
   if (!rows[0]) throw new ApiError(404, "Menu item not found");
-  return mapItem(rows[0]);
+  const item = mapItem(rows[0]);
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "menu_item.updated",
+    entityType: "menu_item",
+    entityId: item.id,
+    metadata: { changed: Object.keys(body) },
+  });
+  return item;
 }
 
 async function setAvailability(id, isAvailable) {
@@ -130,12 +147,19 @@ async function setAvailability(id, isAvailable) {
   return mapItem(rows[0]);
 }
 
-async function remove(id) {
+async function remove(id, user) {
   const { rows } = await pool.query(
     "UPDATE menu_items SET is_active = false WHERE id = $1 RETURNING id",
     [id]
   );
   if (!rows[0]) throw new ApiError(404, "Menu item not found");
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "menu_item.deleted",
+    entityType: "menu_item",
+    entityId: toNum(rows[0].id),
+    metadata: null,
+  });
   return { success: true };
 }
 

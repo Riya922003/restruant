@@ -16,15 +16,15 @@ const getCategory = asyncHandler(async (req, res) => {
 });
 
 const createCategory = asyncHandler(async (req, res) => {
-  created(res, await categories.create(req.body));
+  created(res, await categories.create(req.body, req.user));
 });
 
 const updateCategory = asyncHandler(async (req, res) => {
-  ok(res, await categories.update(req.params.id, req.body));
+  ok(res, await categories.update(req.params.id, req.body, req.user));
 });
 
 const removeCategory = asyncHandler(async (req, res) => {
-  ok(res, await categories.remove(req.params.id));
+  ok(res, await categories.remove(req.params.id, req.user));
 });
 
 // ---- Expense records -------------------------------------------------------
@@ -43,11 +43,11 @@ const createRecord = asyncHandler(async (req, res) => {
 });
 
 const updateRecord = asyncHandler(async (req, res) => {
-  ok(res, await records.update(req.params.id, req.body));
+  ok(res, await records.update(req.params.id, req.body, req.user));
 });
 
 const removeRecord = asyncHandler(async (req, res) => {
-  ok(res, await records.remove(req.params.id));
+  ok(res, await records.remove(req.params.id, req.user));
 });
 
 // ---- Monthly tracking ------------------------------------------------------

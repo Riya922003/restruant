@@ -2,6 +2,7 @@ const { pool } = require("../../config/database");
 const { ApiError } = require("../../utils/api-error");
 const { getPagination, buildMeta, parseSort } = require("../../utils/pagination");
 const { toNum } = require("../../utils/serialize");
+const { writeAudit } = require("../audit/audit.service");
 
 const SORT_WHITELIST = ["name", "sort_order", "created_at"];
 
@@ -72,17 +73,25 @@ async function getById(id, { includeItems } = {}) {
   return category;
 }
 
-async function create(body) {
+async function create(body, user) {
   const { rows } = await pool.query(
     `INSERT INTO menu_categories (name, description, sort_order, is_active)
      VALUES ($1, $2, COALESCE($3, 0), COALESCE($4, true))
      RETURNING *`,
     [body.name, body.description ?? null, body.sort_order ?? null, body.is_active ?? null]
   );
-  return mapCategory(rows[0]);
+  const category = mapCategory(rows[0]);
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "menu_category.created",
+    entityType: "menu_category",
+    entityId: category.id,
+    metadata: { name: category.name },
+  });
+  return category;
 }
 
-async function update(id, body) {
+async function update(id, body, user) {
   const sets = [];
   const params = [];
   for (const key of ["name", "description", "sort_order", "is_active"]) {
@@ -99,12 +108,20 @@ async function update(id, body) {
     params
   );
   if (!rows[0]) throw new ApiError(404, "Menu category not found");
-  return mapCategory(rows[0]);
+  const category = mapCategory(rows[0]);
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "menu_category.updated",
+    entityType: "menu_category",
+    entityId: category.id,
+    metadata: { changed: Object.keys(body) },
+  });
+  return category;
 }
 
 // Soft delete. Blocked if the category still has active items so the menu keeps
 // a valid category for them.
-async function remove(id) {
+async function remove(id, user) {
   const category = await pool.query("SELECT id FROM menu_categories WHERE id = $1", [id]);
   if (!category.rows[0]) throw new ApiError(404, "Menu category not found");
 
@@ -117,6 +134,13 @@ async function remove(id) {
   }
 
   await pool.query("UPDATE menu_categories SET is_active = false WHERE id = $1", [id]);
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "menu_category.deleted",
+    entityType: "menu_category",
+    entityId: toNum(category.rows[0].id),
+    metadata: null,
+  });
   return { success: true };
 }
 

@@ -2,6 +2,7 @@ const { pool } = require("../../config/database");
 const { ApiError } = require("../../utils/api-error");
 const { getPagination, buildMeta, parseSort } = require("../../utils/pagination");
 const { toNum } = require("../../utils/serialize");
+const { writeAudit } = require("../audit/audit.service");
 
 const SORT_WHITELIST = ["name", "created_at", "updated_at"];
 
@@ -62,7 +63,7 @@ async function getById(id) {
   return mapSupplier(rows[0]);
 }
 
-async function create(body) {
+async function create(body, user) {
   const { rows } = await pool.query(
     `INSERT INTO suppliers (name, contact_name, email, phone, address, payment_terms, is_active)
      VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, true))
@@ -77,10 +78,18 @@ async function create(body) {
       body.is_active ?? null,
     ]
   );
-  return mapSupplier(rows[0]);
+  const supplier = mapSupplier(rows[0]);
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "supplier.created",
+    entityType: "supplier",
+    entityId: supplier.id,
+    metadata: { name: body.name },
+  });
+  return supplier;
 }
 
-async function update(id, body) {
+async function update(id, body, user) {
   const sets = [];
   const params = [];
   for (const key of ["name", "contact_name", "email", "phone", "address", "payment_terms", "is_active"]) {
@@ -97,15 +106,29 @@ async function update(id, body) {
     params
   );
   if (!rows[0]) throw new ApiError(404, "Supplier not found");
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "supplier.updated",
+    entityType: "supplier",
+    entityId: id,
+    metadata: { changed: Object.keys(body) },
+  });
   return mapSupplier(rows[0]);
 }
 
-async function remove(id) {
+async function remove(id, user) {
   const { rows } = await pool.query(
     "UPDATE suppliers SET is_active = false WHERE id = $1 RETURNING id",
     [id]
   );
   if (!rows[0]) throw new ApiError(404, "Supplier not found");
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "supplier.deactivated",
+    entityType: "supplier",
+    entityId: id,
+    metadata: null,
+  });
   return { success: true };
 }
 

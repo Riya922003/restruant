@@ -2,6 +2,7 @@ const { pool } = require("../../config/database");
 const { ApiError } = require("../../utils/api-error");
 const { getPagination, buildMeta, parseSort } = require("../../utils/pagination");
 const { hashPassword } = require("../../utils/password");
+const { writeAudit } = require("../audit/audit.service");
 
 const SORT_WHITELIST = [
   "full_name",
@@ -110,6 +111,13 @@ async function create(body, actor) {
      RETURNING *`,
     [body.full_name, body.email, passwordHash, body.role, body.phone ?? null]
   );
+  await writeAudit({
+    actorUserId: actor?.id,
+    action: "user.created",
+    entityType: "user",
+    entityId: rows[0].id,
+    metadata: { role: rows[0].role },
+  });
   return toPublicUser(rows[0]);
 }
 
@@ -132,6 +140,13 @@ async function update(id, patch, actor) {
     `UPDATE users SET ${sets.join(", ")} WHERE id = $${params.length} RETURNING *`,
     params
   );
+  await writeAudit({
+    actorUserId: actor?.id,
+    action: "user.updated",
+    entityType: "user",
+    entityId: rows[0].id,
+    metadata: { changed: Object.keys(patch).filter((key) => key !== "password") },
+  });
   return toPublicUser(rows[0]);
 }
 
@@ -142,6 +157,13 @@ async function resetPassword(id, newPassword, actor) {
 
   const passwordHash = await hashPassword(newPassword);
   await pool.query("UPDATE users SET password_hash = $1 WHERE id = $2", [passwordHash, id]);
+  await writeAudit({
+    actorUserId: actor?.id,
+    action: "user.password_reset",
+    entityType: "user",
+    entityId: target.id,
+    metadata: null,
+  });
   return { success: true };
 }
 
@@ -151,6 +173,13 @@ async function remove(id, actor) {
   assertCanManage(actor, target, { is_active: false });
 
   await pool.query("UPDATE users SET is_active = false WHERE id = $1", [id]);
+  await writeAudit({
+    actorUserId: actor?.id,
+    action: "user.deactivated",
+    entityType: "user",
+    entityId: target.id,
+    metadata: null,
+  });
   return { success: true };
 }
 

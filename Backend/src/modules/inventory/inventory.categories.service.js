@@ -2,6 +2,7 @@ const { pool } = require("../../config/database");
 const { ApiError } = require("../../utils/api-error");
 const { getPagination, buildMeta, parseSort } = require("../../utils/pagination");
 const { toNum } = require("../../utils/serialize");
+const { writeAudit } = require("../audit/audit.service");
 
 const SORT_WHITELIST = ["name", "created_at", "updated_at"];
 
@@ -52,17 +53,24 @@ async function getById(id) {
   return mapCategory(rows[0]);
 }
 
-async function create(body) {
+async function create(body, user) {
   const { rows } = await pool.query(
     `INSERT INTO product_categories (name, description, is_active)
      VALUES ($1, $2, COALESCE($3, true))
      RETURNING *`,
     [body.name, body.description ?? null, body.is_active ?? null]
   );
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "product_category.created",
+    entityType: "product_category",
+    entityId: rows[0].id,
+    metadata: { name: rows[0].name },
+  });
   return mapCategory(rows[0]);
 }
 
-async function update(id, body) {
+async function update(id, body, user) {
   const sets = [];
   const params = [];
   for (const key of ["name", "description", "is_active"]) {
@@ -79,16 +87,30 @@ async function update(id, body) {
     params
   );
   if (!rows[0]) throw new ApiError(404, "Product category not found");
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "product_category.updated",
+    entityType: "product_category",
+    entityId: rows[0].id,
+    metadata: { changed: Object.keys(body) },
+  });
   return mapCategory(rows[0]);
 }
 
 // Soft delete: deactivate the category (products keep pointing at it).
-async function remove(id) {
+async function remove(id, user) {
   const { rows } = await pool.query(
     "UPDATE product_categories SET is_active = false WHERE id = $1 RETURNING id",
     [id]
   );
   if (!rows[0]) throw new ApiError(404, "Product category not found");
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "product_category.deleted",
+    entityType: "product_category",
+    entityId: rows[0].id,
+    metadata: null,
+  });
   return { success: true };
 }
 

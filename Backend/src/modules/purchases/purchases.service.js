@@ -9,6 +9,7 @@ const {
   recomputeTotals,
   assertStatusTransition,
 } = require("./purchases.helpers");
+const { writeAuditTx } = require("../audit/audit.service");
 
 const SORT_WHITELIST = [
   "po_number",
@@ -180,6 +181,13 @@ async function create(body, user) {
         }
 
         await recomputeTotals(client, poId);
+        await writeAuditTx(client, {
+          actorUserId: user?.id,
+          action: "purchase_order.created",
+          entityType: "purchase_order",
+          entityId: poId,
+          metadata: { supplier_id: body.supplier_id },
+        });
         return assemble(client, poId);
       });
     } catch (error) {
@@ -377,6 +385,14 @@ async function receive(id, body, user) {
         [id]
       );
     }
+
+    await writeAuditTx(client, {
+      actorUserId: user?.id,
+      action: "purchase_order.received",
+      entityType: "purchase_order",
+      entityId: id,
+      metadata: { items: body.lines.length },
+    });
 
     return assemble(client, id);
   });

@@ -2,6 +2,7 @@ const { pool } = require("../../config/database");
 const { ApiError } = require("../../utils/api-error");
 const { getPagination, buildMeta, parseSort } = require("../../utils/pagination");
 const { toNum } = require("../../utils/serialize");
+const { writeAudit } = require("../audit/audit.service");
 
 const SORT_WHITELIST = ["label", "capacity", "status", "created_at"];
 const ACTIVE_ORDER_STATUSES = ["completed", "cancelled"];
@@ -68,14 +69,22 @@ async function getById(id) {
   return mapTable(rows[0]);
 }
 
-async function create(body) {
+async function create(body, user) {
   const { rows } = await pool.query(
     `INSERT INTO restaurant_tables (label, capacity, section, status)
      VALUES ($1, $2, $3, COALESCE($4::table_status, 'available'))
      RETURNING *`,
     [body.label, body.capacity, body.section ?? null, body.status ?? null]
   );
-  return mapTable(rows[0]);
+  const table = mapTable(rows[0]);
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "table.created",
+    entityType: "table",
+    entityId: table.id,
+    metadata: { label: table.label },
+  });
+  return table;
 }
 
 async function update(id, body, user) {
@@ -100,10 +109,17 @@ async function update(id, body, user) {
     params
   );
   if (!rows[0]) throw new ApiError(404, "Table not found");
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "table.updated",
+    entityType: "table",
+    entityId: id,
+    metadata: { changed: Object.keys(body) },
+  });
   return mapTable(rows[0]);
 }
 
-async function remove(id) {
+async function remove(id, user) {
   const active = await pool.query(
     `SELECT 1 FROM orders
      WHERE table_id = $1 AND status <> ALL($2::order_status[]) LIMIT 1`,
@@ -118,6 +134,13 @@ async function remove(id) {
     [id]
   );
   if (!rows[0]) throw new ApiError(404, "Table not found");
+  await writeAudit({
+    actorUserId: user?.id,
+    action: "table.deleted",
+    entityType: "table",
+    entityId: id,
+    metadata: null,
+  });
   return { success: true };
 }
 

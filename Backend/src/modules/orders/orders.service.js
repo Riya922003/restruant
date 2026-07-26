@@ -14,6 +14,7 @@ const {
   assertTransition,
 } = require("./orders.helpers");
 const { ORDER_STATUSES } = require("./orders.validation");
+const { writeAuditTx } = require("../audit/audit.service");
 
 const SORT_WHITELIST = ["created_at", "order_number", "total", "status"];
 
@@ -184,7 +185,15 @@ async function create(body, user) {
         await recomputeTotals(client, orderId, body.discount ?? 0);
         if (orderType === "dine_in") await occupyTable(client, tableId);
 
-        return assemble(client, orderId);
+        const order = await assemble(client, orderId);
+        await writeAuditTx(client, {
+          actorUserId: user?.id,
+          action: "order.created",
+          entityType: "order",
+          entityId: orderId,
+          metadata: { order_number: order.order_number, total: order.total },
+        });
+        return order;
       });
     } catch (error) {
       if (error.code === "23505" && attempt === 0) continue;
@@ -229,6 +238,7 @@ async function transitionStatus(id, toStatus, user) {
   return withTransaction(async (client) => {
     const order = await loadOrder(client, id);
     assertTransition(order.status, toStatus, user.role);
+    const fromStatus = order.status;
 
     const sets = ["status = $1"];
     const params = [toStatus];
@@ -254,6 +264,25 @@ async function transitionStatus(id, toStatus, user) {
 
     if ((toStatus === "completed" || toStatus === "cancelled") && order.order_type === "dine_in") {
       await freeTableIfUnused(client, order.table_id, id);
+    }
+
+    // A cancellation is audited as its own action by cancel(); avoid double logging.
+    if (toStatus !== "cancelled") {
+      await writeAuditTx(client, {
+        actorUserId: user?.id,
+        action: "order.status_changed",
+        entityType: "order",
+        entityId: id,
+        metadata: { from: fromStatus, to: toStatus },
+      });
+    } else {
+      await writeAuditTx(client, {
+        actorUserId: user?.id,
+        action: "order.cancelled",
+        entityType: "order",
+        entityId: id,
+        metadata: null,
+      });
     }
 
     return assemble(client, id);
@@ -325,7 +354,7 @@ async function listItems(id) {
   return rows.map(mapItem);
 }
 
-async function takePayment(id, body) {
+async function takePayment(id, body, user) {
   return withTransaction(async (client) => {
     const order = await loadOrder(client, id);
     if (order.status === "cancelled") throw new ApiError(409, "Cannot take payment on a cancelled order");
@@ -353,7 +382,15 @@ async function takePayment(id, body) {
       await freeTableIfUnused(client, order.table_id, id);
     }
 
-    return assemble(client, id);
+    const result = await assemble(client, id);
+    await writeAuditTx(client, {
+      actorUserId: user?.id,
+      action: "order.payment_taken",
+      entityType: "order",
+      entityId: id,
+      metadata: { amount: result.total, method: body.payment_method },
+    });
+    return result;
   });
 }
 

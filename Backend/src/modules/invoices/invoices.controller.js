@@ -21,7 +21,7 @@ const update = asyncHandler(async (req, res) => {
 });
 
 const remove = asyncHandler(async (req, res) => {
-  ok(res, await svc.remove(req.params.id));
+  ok(res, await svc.remove(req.params.id, req.user));
 });
 
 const uploadFile = asyncHandler(async (req, res) => {

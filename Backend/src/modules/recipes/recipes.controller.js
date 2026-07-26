@@ -16,11 +16,11 @@ const getByMenuItem = asyncHandler(async (req, res) => {
 });
 
 const create = asyncHandler(async (req, res) => {
-  created(res, await svc.create(req.body));
+  created(res, await svc.create(req.body, req.user));
 });
 
 const update = asyncHandler(async (req, res) => {
-  ok(res, await svc.update(req.params.id, req.body));
+  ok(res, await svc.update(req.params.id, req.body, req.user));
 });
 
 const replaceIngredients = asyncHandler(async (req, res) => {
@@ -40,7 +40,7 @@ const removeIngredient = asyncHandler(async (req, res) => {
 });
 
 const remove = asyncHandler(async (req, res) => {
-  ok(res, await svc.remove(req.params.id));
+  ok(res, await svc.remove(req.params.id, req.user));
 });
 
 module.exports = {

@@ -3,6 +3,7 @@ const { ApiError } = require("../../utils/api-error");
 const { getPagination, buildMeta, parseSort } = require("../../utils/pagination");
 const { withTransaction } = require("../../utils/with-transaction");
 const { toNum } = require("../../utils/serialize");
+const { writeAuditTx } = require("../audit/audit.service");
 
 const SORT_WHITELIST = ["created_at", "quantity"];
 
@@ -129,6 +130,17 @@ async function create(body, user) {
       "UPDATE products SET current_stock = current_stock + $1 WHERE id = $2 RETURNING current_stock",
       [delta, body.product_id]
     );
+
+    await writeAuditTx(client, {
+      actorUserId: user?.id,
+      action: "stock.moved",
+      entityType: "stock_movement",
+      entityId: inserted.rows[0].id,
+      metadata: {
+        movement_type: inserted.rows[0].movement_type,
+        quantity: toNum(inserted.rows[0].quantity),
+      },
+    });
 
     return {
       ...mapMovement(inserted.rows[0]),

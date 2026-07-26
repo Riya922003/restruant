@@ -14,6 +14,7 @@ const modules = [
   require("./modules/expenses/expenses.routes"),
   require("./modules/invoices/invoices.routes"),
   require("./modules/dashboard/dashboard.routes"),
+  require("./modules/audit/audit.routes"),
 ];
 
 function registerRoutes() {

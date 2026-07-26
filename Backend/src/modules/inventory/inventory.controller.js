@@ -17,15 +17,15 @@ const getCategory = asyncHandler(async (req, res) => {
 });
 
 const createCategory = asyncHandler(async (req, res) => {
-  created(res, await categories.create(req.body));
+  created(res, await categories.create(req.body, req.user));
 });
 
 const updateCategory = asyncHandler(async (req, res) => {
-  ok(res, await categories.update(req.params.id, req.body));
+  ok(res, await categories.update(req.params.id, req.body, req.user));
 });
 
 const removeCategory = asyncHandler(async (req, res) => {
-  ok(res, await categories.remove(req.params.id));
+  ok(res, await categories.remove(req.params.id, req.user));
 });
 
 // ---- Products -----------------------------------------------------------
@@ -40,15 +40,15 @@ const getProduct = asyncHandler(async (req, res) => {
 });
 
 const createProduct = asyncHandler(async (req, res) => {
-  created(res, await products.create(req.body));
+  created(res, await products.create(req.body, req.user));
 });
 
 const updateProduct = asyncHandler(async (req, res) => {
-  ok(res, await products.update(req.params.id, req.body));
+  ok(res, await products.update(req.params.id, req.body, req.user));
 });
 
 const removeProduct = asyncHandler(async (req, res) => {
-  ok(res, await products.remove(req.params.id));
+  ok(res, await products.remove(req.params.id, req.user));
 });
 
 // ---- Warehouses ---------------------------------------------------------
@@ -63,15 +63,15 @@ const getWarehouse = asyncHandler(async (req, res) => {
 });
 
 const createWarehouse = asyncHandler(async (req, res) => {
-  created(res, await warehouses.create(req.body));
+  created(res, await warehouses.create(req.body, req.user));
 });
 
 const updateWarehouse = asyncHandler(async (req, res) => {
-  ok(res, await warehouses.update(req.params.id, req.body));
+  ok(res, await warehouses.update(req.params.id, req.body, req.user));
 });
 
 const removeWarehouse = asyncHandler(async (req, res) => {
-  ok(res, await warehouses.remove(req.params.id));
+  ok(res, await warehouses.remove(req.params.id, req.user));
 });
 
 // ---- Stock movements ----------------------------------------------------
