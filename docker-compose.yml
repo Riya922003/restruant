@@ -1,3 +1,13 @@
+# Full RestaurantOS stack: Postgres + one-shot migrate/seed + Express API +
+# FastAPI AI service + Next.js frontend.
+#
+# Usage:
+#   cp .env.docker.example .env.docker   # then fill in secrets (optional for AI)
+#   docker compose --env-file .env.docker up --build
+#
+# Published ports: frontend 3000, backend 4000, ai-service 8000, postgres 5432.
+# Secrets are interpolated from the --env-file; nothing secret is committed here.
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -16,5 +26,88 @@ services:
       timeout: 5s
       retries: 5
 
+  # One-shot: apply migrations then seed, using the backend image. NODE_ENV is
+  # development here so the seed's production-wipe guard does not block it (this
+  # targets the disposable compose database, not Neon). Exits 0 when done.
+  migrate:
+    build:
+      context: ./Backend
+    image: restaurantos-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER:-restaurantos}:${POSTGRES_PASSWORD:-restaurantos}@postgres:5432/${POSTGRES_DB:-restaurantos}?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET:-dev-local-secret-change-me}
+    command: sh -c "node src/db/migrate.js && node src/db/seed.js"
+    restart: "no"
+
+  backend:
+    build:
+      context: ./Backend
+    image: restaurantos-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-restaurantos}:${POSTGRES_PASSWORD:-restaurantos}@postgres:5432/${POSTGRES_DB:-restaurantos}?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET:-dev-local-secret-change-me}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-12h}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
+      AI_SERVICE_URL: http://ai-service:8000
+    ports:
+      - "4000:4000"
+
+  ai-service:
+    build:
+      context: ./ai-service
+    image: restaurantos-ai
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # sslmode=disable keeps the plaintext compose DB from triggering the AI
+      # service's "force SSL for non-local hosts" rule.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-restaurantos}:${POSTGRES_PASSWORD:-restaurantos}@postgres:5432/${POSTGRES_DB:-restaurantos}?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET:-dev-local-secret-change-me}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
+      GROK_API_KEY: ${GROK_API_KEY:-}
+      GROK_BASE_URL: ${GROK_BASE_URL:-https://api.groq.com/openai/v1}
+      GROK_TEXT_MODEL: ${GROK_TEXT_MODEL:-llama-3.3-70b-versatile}
+      VERYFI_CLIENT_ID: ${VERYFI_CLIENT_ID:-}
+      VERYFI_CLIENT_SECRET: ${VERYFI_CLIENT_SECRET:-}
+      VERYFI_USERNAME: ${VERYFI_USERNAME:-}
+      VERYFI_API_KEY: ${VERYFI_API_KEY:-}
+      CLOUDINARY_URL: ${CLOUDINARY_URL:-}
+      REDIS_URL: ${REDIS_URL:-}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ai-uploads:/app/.uploads
+
+  frontend:
+    build:
+      context: ./Frontend
+      args:
+        # Baked at build time and read by the browser, so they point at the
+        # host-published ports, not the compose service names.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api}
+        NEXT_PUBLIC_AI_URL: ${NEXT_PUBLIC_AI_URL:-http://localhost:8000}
+    image: restaurantos-frontend
+    depends_on:
+      backend:
+        condition: service_started
+      ai-service:
+        condition: service_started
+    ports:
+      - "3000:3000"
+
 volumes:
   postgres-data:
+  ai-uploads:

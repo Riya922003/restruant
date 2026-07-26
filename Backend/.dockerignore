@@ -1,0 +1,11 @@
+node_modules
+package-lock.json
+npm-debug.log*
+.env
+.env.*
+.git
+.gitignore
+uploads
+src/uploads
+Dockerfile
+.dockerignore
