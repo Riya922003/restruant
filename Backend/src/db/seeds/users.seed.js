@@ -6,16 +6,16 @@ const { hashPassword } = require("../../utils/password");
 // are hashed here with the same helper the auth service uses.
 
 const STAFF = [
-  { full_name: "Olivia Owner", email: "owner@restaurantos.test", password: "Owner@123", role: "owner", phone: "+91 90000 00001" },
-  { full_name: "Marcus Manager", email: "manager@restaurantos.test", password: "Manager@123", role: "manager", phone: "+91 90000 00002" },
-  { full_name: "Chandra Chef", email: "chef@restaurantos.test", password: "Chef@123", role: "chef", phone: "+91 90000 00003" },
-  { full_name: "Wade Waiter", email: "waiter@restaurantos.test", password: "Waiter@123", role: "waiter", phone: "+91 90000 00004" },
-  { full_name: "Cassie Cashier", email: "cashier@restaurantos.test", password: "Cashier@123", role: "cashier", phone: "+91 90000 00005" },
-  { full_name: "Sam Store", email: "store@restaurantos.test", password: "Store@123", role: "store_manager", phone: "+91 90000 00006" },
+  { full_name: "Moon Pie", email: "owner@restaurantos.test", password: "Owner@123", role: "owner", phone: "+91 90000 00001" },
+  { full_name: "Rajesh Koothrappali", email: "manager@restaurantos.test", password: "Manager@123", role: "manager", phone: "+91 90000 00002" },
+  { full_name: "Amy Farrah Fowler", email: "chef@restaurantos.test", password: "Chef@123", role: "chef", phone: "+91 90000 00003" },
+  { full_name: "Howard Wolowitz", email: "waiter@restaurantos.test", password: "Waiter@123", role: "waiter", phone: "+91 90000 00004" },
+  { full_name: "Leonard Hofstadter", email: "cashier@restaurantos.test", password: "Cashier@123", role: "cashier", phone: "+91 90000 00005" },
+  { full_name: "Sheldon Cooper", email: "store@restaurantos.test", password: "Store@123", role: "store_manager", phone: "+91 90000 00006" },
   // Extra staff so lists and waiter/chef assignment are non-trivial.
-  { full_name: "Priya Server", email: "waiter2@restaurantos.test", password: "Waiter@123", role: "waiter", phone: "+91 90000 00007" },
+  { full_name: "Penny", email: "waiter2@restaurantos.test", password: "Waiter@123", role: "waiter", phone: "+91 90000 00007" },
   { full_name: "Diego Line", email: "chef2@restaurantos.test", password: "Chef@123", role: "chef", phone: "+91 90000 00008" },
-  { full_name: "Farah Front", email: "cashier2@restaurantos.test", password: "Cashier@123", role: "cashier", phone: "+91 90000 00009" },
+  { full_name: "Bernadette", email: "cashier2@restaurantos.test", password: "Cashier@123", role: "cashier", phone: "+91 90000 00009" },
 ];
 
 async function seedUsers(client, ctx) {
