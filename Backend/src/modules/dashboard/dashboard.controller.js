@@ -2,9 +2,9 @@ const { asyncHandler } = require("../../utils/async-handler");
 const { ok } = require("../../utils/respond");
 const svc = require("./dashboard.service");
 
-// Primary endpoint: all 8 widgets in one payload.
+// Primary endpoint: the widgets visible to the caller's role, in one payload.
 const summary = asyncHandler(async (req, res) => {
-  ok(res, await svc.getSummary(req.query.range));
+  ok(res, await svc.getSummary(req.query.range, req.user.role));
 });
 
 // Per-widget endpoints echo `range` (standalone) and wrap the same widget shape.

@@ -5,8 +5,9 @@ const { validate } = require("../../middlewares/validate.middleware");
 const { querySchema } = require("./dashboard.validation");
 const ctrl = require("./dashboard.controller");
 
-// Dashboard is readable by every authenticated role (spec 04). Owner bypass
-// still applies inside requireRole.
+// Operational widgets + the combined summary are readable by every authenticated
+// role (owner bypass applies). The summary itself filters financial widgets by
+// role internally (spec 10 §11.1).
 const canRead = requireRole(
   "owner",
   "manager",
@@ -15,20 +16,24 @@ const canRead = requireRole(
   "cashier",
   "store_manager"
 );
+// Financial per-widget endpoints are limited to finance-facing roles; chef and
+// waiter get 403. Owner is admitted via the requireRole bypass.
+const canReadFinancials = requireRole("manager", "store_manager", "cashier");
 
 function mountDashboardRoutes(parentRouter) {
   const router = Router();
   router.use(authMiddleware);
 
   router.get("/summary", canRead, validate(querySchema, "query"), ctrl.summary);
-  router.get("/sales", canRead, validate(querySchema, "query"), ctrl.sales);
   router.get("/active-orders", canRead, ctrl.activeOrders);
   router.get("/table-occupancy", canRead, ctrl.tableOccupancy);
   router.get("/low-stock", canRead, ctrl.lowStock);
-  router.get("/monthly-expenses", canRead, ctrl.monthlyExpenses);
-  router.get("/purchase-summary", canRead, validate(querySchema, "query"), ctrl.purchaseSummary);
-  router.get("/profit", canRead, validate(querySchema, "query"), ctrl.profit);
-  router.get("/supplier-summary", canRead, validate(querySchema, "query"), ctrl.supplierSummary);
+
+  router.get("/sales", canReadFinancials, validate(querySchema, "query"), ctrl.sales);
+  router.get("/monthly-expenses", canReadFinancials, ctrl.monthlyExpenses);
+  router.get("/purchase-summary", canReadFinancials, validate(querySchema, "query"), ctrl.purchaseSummary);
+  router.get("/profit", canReadFinancials, validate(querySchema, "query"), ctrl.profit);
+  router.get("/supplier-summary", canReadFinancials, validate(querySchema, "query"), ctrl.supplierSummary);
 
   parentRouter.use("/dashboard", router);
 }

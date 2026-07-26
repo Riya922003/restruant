@@ -249,39 +249,41 @@ async function supplierSummary(boundary) {
   };
 }
 
-// --- Combined summary: fan out all 8 widgets concurrently --------------------
-async function getSummary(range) {
+// Financial widgets are limited to these roles (spec 10 §11.1 stricter cut).
+// Operational widgets stay visible to every authenticated role. Owner is always
+// included; chef and waiter are intentionally excluded.
+const FINANCIAL_ROLES = ["owner", "manager", "store_manager", "cashier"];
+function canSeeFinancials(role) {
+  return FINANCIAL_ROLES.includes(role);
+}
+
+// --- Combined summary: fan out the visible widgets concurrently --------------
+async function getSummary(range, role) {
   const boundary = await resolveBoundary(range);
-  const [
-    sales_overview,
-    active,
-    table_occupancy,
-    low_stock_items,
-    monthly,
-    purchase_summary,
-    profit_overview,
-    supplier_summary,
-  ] = await Promise.all([
-    salesOverview(boundary),
-    activeOrders(),
-    tableOccupancy(),
-    lowStock(),
-    monthlyExpenses(),
-    purchaseSummary(boundary),
-    profit(boundary),
-    supplierSummary(boundary),
-  ]);
-  return {
-    range,
-    sales_overview,
-    active_orders: active,
-    table_occupancy,
-    low_stock_items,
-    monthly_expenses: monthly,
-    purchase_summary,
-    profit_overview,
-    supplier_summary,
+
+  // Operational widgets — everyone sees these.
+  const tasks = {
+    active_orders: activeOrders(),
+    table_occupancy: tableOccupancy(),
+    low_stock_items: lowStock(),
   };
+  // Financial widgets — only for finance-facing roles. Omitted entirely (not
+  // just hidden) for chef/waiter, so the numbers never leave the server.
+  if (canSeeFinancials(role)) {
+    tasks.sales_overview = salesOverview(boundary);
+    tasks.monthly_expenses = monthlyExpenses();
+    tasks.purchase_summary = purchaseSummary(boundary);
+    tasks.profit_overview = profit(boundary);
+    tasks.supplier_summary = supplierSummary(boundary);
+  }
+
+  const keys = Object.keys(tasks);
+  const results = await Promise.all(keys.map((k) => tasks[k]));
+  const summary = { range };
+  keys.forEach((k, i) => {
+    summary[k] = results[i];
+  });
+  return summary;
 }
 
 module.exports = {
@@ -295,4 +297,5 @@ module.exports = {
   profit,
   supplierSummary,
   getSummary,
+  canSeeFinancials,
 };

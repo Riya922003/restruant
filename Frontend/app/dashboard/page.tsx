@@ -13,7 +13,8 @@ type Range = "7d" | "30d" | "month";
 
 type Summary = {
   range: Range;
-  sales_overview: {
+  // Financial widgets are omitted by the backend for chef/waiter (spec 10 §11.1).
+  sales_overview?: {
     total_sales: number;
     order_count: number;
     average_order_value: number;
@@ -51,23 +52,23 @@ type Summary = {
       unit: string;
     }[];
   };
-  monthly_expenses: {
+  monthly_expenses?: {
     year: number;
     current_month_total: number;
     months: { month: string; total_amount: number; record_count: number }[];
   };
-  purchase_summary: {
+  purchase_summary?: {
     total_po_value: number;
     outstanding_value: number;
     by_status: { status: string; po_count: number; total_value: number }[];
   };
-  profit_overview: {
+  profit_overview?: {
     total_revenue: number;
     total_cost: number;
     gross_profit: number;
     margin_pct: number | null;
   };
-  supplier_summary: {
+  supplier_summary?: {
     active_supplier_count: number;
     outstanding_invoice_total: number;
     top_suppliers: { id: number; name: string; total_spend: number; invoice_count: number }[];
@@ -215,27 +216,32 @@ export default function DashboardPage() {
 
   if (!user) return null;
 
+  // Finance-facing roles see the money widgets; chef/waiter see operations only
+  // (spec 10 §11.1). This is UX gating — the backend also omits the data.
+  const canSeeFinancials = ["owner", "manager", "store_manager", "cashier"].includes(user.role);
   const rangeCaption = range === "month" ? "This month" : `Last ${range === "7d" ? "7" : "30"} days`;
 
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
         title={`Welcome, ${user.full_name.split(" ")[0]}`}
-        subtitle="Live snapshot of sales, operations, and supply"
+        subtitle={canSeeFinancials ? "Live snapshot of sales, operations, and supply" : "Live snapshot of floor operations"}
         actions={
-          <div className="flex gap-1 rounded-lg border border-zinc-200 bg-white p-0.5">
-            {RANGES.map((r) => (
-              <button
-                key={r.value}
-                onClick={() => setRange(r.value)}
-                className={`rounded-md px-3 py-1 text-xs font-medium transition ${
-                  range === r.value ? "bg-zinc-900 text-white" : "text-zinc-600 hover:text-zinc-900"
-                }`}
-              >
-                {r.label}
-              </button>
-            ))}
-          </div>
+          canSeeFinancials ? (
+            <div className="flex gap-1 rounded-lg border border-zinc-200 bg-white p-0.5">
+              {RANGES.map((r) => (
+                <button
+                  key={r.value}
+                  onClick={() => setRange(r.value)}
+                  className={`rounded-md px-3 py-1 text-xs font-medium transition ${
+                    range === r.value ? "bg-zinc-900 text-white" : "text-zinc-600 hover:text-zinc-900"
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          ) : null
         }
       />
 
@@ -245,26 +251,8 @@ export default function DashboardPage() {
         <ErrorState message={error} onRetry={refetch} />
       ) : data ? (
         <div className="space-y-4">
-          {/* Headline stats */}
+          {/* Headline stats — operational first (everyone), then financial */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Metric
-              label="Sales"
-              accent="bg-emerald-500"
-              value={formatCurrency(data.sales_overview.total_sales)}
-              hint={`${data.sales_overview.order_count} paid orders`}
-            />
-            <Metric
-              label="Avg order value"
-              accent="bg-teal-500"
-              value={formatCurrency(data.sales_overview.average_order_value)}
-              hint="per paid order"
-            />
-            <Metric
-              label="Gross profit"
-              accent="bg-green-600"
-              value={formatCurrency(data.profit_overview.gross_profit)}
-              hint={`${data.profit_overview.margin_pct ?? 0}% margin`}
-            />
             <Metric
               label="Occupancy"
               accent="bg-blue-500"
@@ -283,21 +271,50 @@ export default function DashboardPage() {
               value={data.low_stock_items.low_stock_count}
               hint="at/below reorder level"
             />
-            <Metric
-              label="Open PO value"
-              accent="bg-amber-500"
-              value={formatCurrency(data.purchase_summary.outstanding_value)}
-              hint="ordered, not received"
-            />
-            <Metric
-              label="Payables"
-              accent="bg-rose-500"
-              value={formatCurrency(data.supplier_summary.outstanding_invoice_total)}
-              hint="unpaid invoices"
-            />
+            {data.sales_overview ? (
+              <>
+                <Metric
+                  label="Sales"
+                  accent="bg-emerald-500"
+                  value={formatCurrency(data.sales_overview.total_sales)}
+                  hint={`${data.sales_overview.order_count} paid orders`}
+                />
+                <Metric
+                  label="Avg order value"
+                  accent="bg-teal-500"
+                  value={formatCurrency(data.sales_overview.average_order_value)}
+                  hint="per paid order"
+                />
+              </>
+            ) : null}
+            {data.profit_overview ? (
+              <Metric
+                label="Gross profit"
+                accent="bg-green-600"
+                value={formatCurrency(data.profit_overview.gross_profit)}
+                hint={`${data.profit_overview.margin_pct ?? 0}% margin`}
+              />
+            ) : null}
+            {data.purchase_summary ? (
+              <Metric
+                label="Open PO value"
+                accent="bg-amber-500"
+                value={formatCurrency(data.purchase_summary.outstanding_value)}
+                hint="ordered, not received"
+              />
+            ) : null}
+            {data.supplier_summary ? (
+              <Metric
+                label="Payables"
+                accent="bg-rose-500"
+                value={formatCurrency(data.supplier_summary.outstanding_invoice_total)}
+                hint="unpaid invoices"
+              />
+            ) : null}
           </div>
 
-          {/* Sales trend + monthly expenses */}
+          {/* Sales trend + monthly expenses (financial) */}
+          {data.sales_overview && data.monthly_expenses ? (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <SectionCard
               title="Sales trend"
@@ -340,8 +357,9 @@ export default function DashboardPage() {
               />
             </SectionCard>
           </div>
+          ) : null}
 
-          {/* Active orders + low stock */}
+          {/* Active orders + low stock (everyone) */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <SectionCard title={`Active orders (${data.active_orders.active_count})`} icon="🧾">
               {data.active_orders.orders.length === 0 ? (
@@ -428,7 +446,8 @@ export default function DashboardPage() {
             </SectionCard>
           </div>
 
-          {/* Purchase summary + supplier summary */}
+          {/* Purchase summary + supplier summary (financial) */}
+          {data.purchase_summary && data.supplier_summary ? (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <SectionCard title="Purchase orders" icon="🛒">
               <div className="mb-4 grid grid-cols-2 gap-3">
@@ -446,7 +465,7 @@ export default function DashboardPage() {
               ) : (
                 <>
                   {(() => {
-                    const totalCount = data.purchase_summary.by_status.reduce((a, s) => a + s.po_count, 0) || 1;
+                    const totalCount = data.purchase_summary!.by_status.reduce((a, s) => a + s.po_count, 0) || 1;
                     return (
                       <div className="mb-3 flex h-2.5 overflow-hidden rounded-full bg-zinc-100">
                         {data.purchase_summary.by_status.map((s) => (
@@ -485,7 +504,7 @@ export default function DashboardPage() {
                 <p className="py-6 text-center text-sm text-zinc-400">No supplier spend in range.</p>
               ) : (
                 (() => {
-                  const maxSpend = Math.max(...data.supplier_summary.top_suppliers.map((s) => s.total_spend), 1);
+                  const maxSpend = Math.max(...data.supplier_summary!.top_suppliers.map((s) => s.total_spend), 1);
                   return (
                     <ul className="space-y-3.5">
                       {data.supplier_summary.top_suppliers.map((s) => (
@@ -516,11 +535,13 @@ export default function DashboardPage() {
               )}
             </SectionCard>
           </div>
+          ) : null}
 
-          {/* Profit overview */}
+          {/* Profit overview (financial) */}
+          {data.profit_overview ? (
           <SectionCard title="Profit overview" icon="📊">
             {(() => {
-              const p = data.profit_overview;
+              const p = data.profit_overview!;
               const rev = p.total_revenue || 1;
               const profitPct = Math.max(0, (p.gross_profit / rev) * 100);
               const cogsPct = Math.max(0, (p.total_cost / rev) * 100);
@@ -564,6 +585,7 @@ export default function DashboardPage() {
               );
             })()}
           </SectionCard>
+          ) : null}
         </div>
       ) : null}
     </div>
