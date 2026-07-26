@@ -147,7 +147,11 @@ function CreateInvoiceModal({ open, onClose, suppliers, onCreated }: {
     setLines([...lines, { ...pick }]);
     setPick({ description: "", quantity: "1", unit_price: "" });
   }
-  const subtotal = lines.reduce((s, l) => s + Number(l.quantity || 0) * Number(l.unit_price || 0), 0);
+  // Treat a filled-but-not-yet-added row as a real line so users are not blocked
+  // by forgetting to click "Add". "Add" still lets them queue several lines.
+  const pendingLine = pick.description.trim() !== "" ? pick : null;
+  const allLines = pendingLine ? [...lines, pendingLine] : lines;
+  const subtotal = allLines.reduce((s, l) => s + Number(l.quantity || 0) * Number(l.unit_price || 0), 0);
   const total = subtotal + Number(head.tax || 0);
 
   async function submit() {
@@ -160,7 +164,7 @@ function CreateInvoiceModal({ open, onClose, suppliers, onCreated }: {
         due_date: head.due_date || null,
         tax: Number(head.tax || 0),
         notes: head.notes || null,
-        items: lines.map((l) => ({ description: l.description.trim(), quantity: Number(l.quantity), unit_price: Number(l.unit_price || 0) })),
+        items: allLines.map((l) => ({ description: l.description.trim(), quantity: Number(l.quantity), unit_price: Number(l.unit_price || 0) })),
       });
       reset(); onCreated();
     } catch (e) { setErr(e instanceof Error ? e.message : "Failed"); } finally { setBusy(false); }
@@ -169,7 +173,7 @@ function CreateInvoiceModal({ open, onClose, suppliers, onCreated }: {
   return (
     <Modal open={open} onClose={() => { reset(); onClose(); }} title="New invoice"
       footer={<><Button variant="secondary" onClick={() => { reset(); onClose(); }}>Cancel</Button>
-        <Button onClick={submit} disabled={busy || !head.invoice_number.trim() || !head.supplier_id || lines.length === 0}>{busy ? "Saving..." : "Create invoice"}</Button></>}>
+        <Button onClick={submit} disabled={busy || !head.invoice_number.trim() || !head.supplier_id || allLines.length === 0}>{busy ? "Saving..." : "Create invoice"}</Button></>}>
       <div className="space-y-3">
         <p className="text-xs text-zinc-500">{OCR_NOTE}</p>
         <div className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50 px-3 py-2 text-xs text-zinc-500">

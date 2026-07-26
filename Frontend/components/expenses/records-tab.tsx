@@ -91,7 +91,7 @@ export function RecordsTab({ canWrite, canDelete }: { canWrite: boolean; canDele
       payment_method: form.payment_method || null,
       supplier_id: form.supplier_id ? Number(form.supplier_id) : null,
       reference: form.reference || null,
-      description: form.description || null,
+      description: form.description.trim(),
     };
     try {
       if (editing) await api.patch(`/expense-records/${editing.id}`, body);
@@ -208,7 +208,7 @@ export function RecordsTab({ canWrite, canDelete }: { canWrite: boolean; canDele
             <Button variant="secondary" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={save} disabled={saving || !form.category_id || !form.amount || !form.expense_date}>
+            <Button onClick={save} disabled={saving || !form.category_id || !form.amount || !form.expense_date || !form.description.trim()}>
               {saving ? "Saving..." : "Save"}
             </Button>
           </>
@@ -263,7 +263,7 @@ export function RecordsTab({ canWrite, canDelete }: { canWrite: boolean; canDele
               <Input value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} />
             </Field>
           </div>
-          <Field label="Description">
+          <Field label="Description (required)">
             <Textarea rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
           </Field>
           {formError ? <p className="text-sm text-red-700">{formError}</p> : null}
