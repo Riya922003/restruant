@@ -48,9 +48,11 @@ def fetch_file(public_id: str | None, file_url: str | None) -> bytes:
         # public_id holds the absolute local path written by store_file.
         return Path(public_id).read_bytes()
 
-    # Cloudinary: build a short-lived signed URL for the private asset and fetch.
+    # Cloudinary: ensure this process has credentials (the worker is separate from
+    # the API), then build a signed URL for the private asset and fetch it.
     import cloudinary.utils
 
+    cloudinary_client.ensure_configured()
     signed_url, _ = cloudinary.utils.cloudinary_url(
         public_id, resource_type="image", type="authenticated", sign_url=True
     )

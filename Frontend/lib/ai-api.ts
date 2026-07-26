@@ -13,8 +13,18 @@ function authHeader(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+// Wrap fetch so a down/unreachable AI service surfaces a clear message instead of
+// a raw network error that reads as a generic "failed".
+async function doFetch(path: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(`${AI_BASE_URL}${path}`, init);
+  } catch {
+    throw new ApiError(`Cannot reach the AI service at ${AI_BASE_URL}. Is it running?`, 0);
+  }
+}
+
 async function aiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const res = await fetch(`${AI_BASE_URL}${path}`, {
+  const res = await doFetch(path, {
     method: options.method || "GET",
     headers: { "Content-Type": "application/json", ...authHeader(), ...options.headers },
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
@@ -35,7 +45,7 @@ export const aiApi = {
 
 // List endpoints return the full { data, meta } envelope.
 export async function aiList<T>(path: string): Promise<Paginated<T>> {
-  const res = await fetch(`${AI_BASE_URL}${path}`, { headers: authHeader() });
+  const res = await doFetch(path, { headers: authHeader() });
   const payload = await res.json().catch(() => null);
   if (!res.ok) {
     if (res.status === 401) setToken(null);
@@ -46,7 +56,7 @@ export async function aiList<T>(path: string): Promise<Paginated<T>> {
 
 // Multipart upload: do NOT set Content-Type (the browser sets the boundary).
 export async function aiUpload<T>(path: string, formData: FormData): Promise<T> {
-  const res = await fetch(`${AI_BASE_URL}${path}`, {
+  const res = await doFetch(path, {
     method: "POST",
     headers: authHeader(),
     body: formData,
@@ -61,7 +71,7 @@ export async function aiUpload<T>(path: string, formData: FormData): Promise<T> 
 
 // Fetch a binary response (e.g. the original invoice file) as an object URL.
 export async function aiObjectUrl(path: string): Promise<string> {
-  const res = await fetch(`${AI_BASE_URL}${path}`, { headers: authHeader() });
+  const res = await doFetch(path, { headers: authHeader() });
   if (!res.ok) {
     if (res.status === 401) setToken(null);
     throw new ApiError("Failed to load file", res.status);
@@ -71,7 +81,7 @@ export async function aiObjectUrl(path: string): Promise<string> {
 
 // Trigger a browser download of a binary endpoint (e.g. the Excel register).
 export async function aiDownload(path: string, filename: string): Promise<void> {
-  const res = await fetch(`${AI_BASE_URL}${path}`, { headers: authHeader() });
+  const res = await doFetch(path, { headers: authHeader() });
   if (!res.ok) {
     if (res.status === 401) setToken(null);
     const payload = await res.json().catch(() => null);
