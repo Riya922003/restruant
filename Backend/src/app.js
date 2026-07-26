@@ -7,7 +7,22 @@ const { registerRoutes } = require("./routes");
 
 const app = express();
 
-app.use(cors({ origin: env.frontendOrigin, credentials: true }));
+// Allow one or more frontend origins (comma-separated in FRONTEND_ORIGIN).
+// Trailing slashes are stripped so "https://app.vercel.app/" and
+// "https://app.vercel.app" both match the browser's Origin header. Requests with
+// no Origin (curl, health checks, same-origin) are allowed through.
+const stripSlash = (s) => s.trim().replace(/\/+$/, "");
+const allowedOrigins = env.frontendOrigin.split(",").map(stripSlash).filter(Boolean);
+
+app.use(
+  cors({
+    origin(origin, cb) {
+      if (!origin || allowedOrigins.includes(stripSlash(origin))) return cb(null, true);
+      cb(null, false);
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
