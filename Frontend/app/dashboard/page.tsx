@@ -215,6 +215,8 @@ export default function DashboardPage() {
 
   if (!user) return null;
 
+  const rangeCaption = range === "month" ? "This month" : `Last ${range === "7d" ? "7" : "30"} days`;
+
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
@@ -300,10 +302,14 @@ export default function DashboardPage() {
             <SectionCard
               title="Sales trend"
               icon="📈"
-              action={<span className="text-xs text-zinc-400">{data.sales_overview.series.length} days</span>}
+              action={<span className="text-xs text-zinc-400">{rangeCaption}</span>}
             >
-              <p className="mb-4 text-2xl font-semibold text-zinc-950">
+              <p className="mb-1 text-2xl font-semibold text-zinc-950">
                 {formatCurrency(data.sales_overview.total_sales)}
+              </p>
+              <p className="mb-4 text-xs text-zinc-400">
+                across {data.sales_overview.series.length}{" "}
+                {data.sales_overview.series.length === 1 ? "day" : "days"} with sales
               </p>
               <BarChart
                 from="#059669"
@@ -341,28 +347,33 @@ export default function DashboardPage() {
               {data.active_orders.orders.length === 0 ? (
                 <p className="py-6 text-center text-sm text-zinc-400">No active orders.</p>
               ) : (
-                <ul className="divide-y divide-zinc-100">
-                  {data.active_orders.orders.slice(0, 6).map((o) => (
-                    <li
-                      key={o.id}
-                      className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-2.5 transition hover:bg-zinc-50"
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-zinc-900 text-xs font-semibold text-white">
-                          {o.table_label ?? "—"}
-                        </span>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-zinc-900">{o.order_number}</p>
-                          <p className="text-xs text-zinc-400">{humanize(o.order_type)}</p>
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <span className="text-sm font-semibold text-zinc-900">{formatCurrency(o.total)}</span>
-                        <StatusBadge kind="order" value={o.status} />
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-zinc-200 text-left text-xs uppercase tracking-wide text-zinc-500">
+                        <th className="pb-2 pr-3 font-medium">Order</th>
+                        <th className="pb-2 pr-3 font-medium">Table</th>
+                        <th className="pb-2 pr-3 text-right font-medium">Amount</th>
+                        <th className="pb-2 text-right font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.active_orders.orders.slice(0, 6).map((o) => (
+                        <tr key={o.id} className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50">
+                          <td className="py-2.5 pr-3">
+                            <span className="block font-medium text-zinc-900">{o.order_number}</span>
+                            <span className="text-xs text-zinc-400">{humanize(o.order_type)}</span>
+                          </td>
+                          <td className="py-2.5 pr-3 text-zinc-600">{o.table_label ?? "—"}</td>
+                          <td className="py-2.5 pr-3 text-right font-semibold text-zinc-900">{formatCurrency(o.total)}</td>
+                          <td className="py-2.5 text-right">
+                            <StatusBadge kind="order" value={o.status} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </SectionCard>
 
@@ -374,31 +385,45 @@ export default function DashboardPage() {
               {data.low_stock_items.items.length === 0 ? (
                 <p className="py-6 text-center text-sm text-zinc-400">Everything is above reorder level.</p>
               ) : (
-                <ul className="space-y-3.5">
-                  {data.low_stock_items.items.slice(0, 6).map((it) => {
-                    const ratio = Math.min(1, it.current_stock / (it.reorder_level || 1));
-                    const barColor = ratio < 0.4 ? "#ef4444" : "#f59e0b";
-                    return (
-                      <li key={`${it.source}-${it.id}`}>
-                        <div className="mb-1.5 flex items-center justify-between gap-2">
-                          <div className="flex min-w-0 items-center gap-2">
-                            <Badge tone={it.source === "ingredient" ? "violet" : "cyan"}>{it.source}</Badge>
-                            <span className="truncate text-sm text-zinc-900">{it.name}</span>
-                          </div>
-                          <span className="shrink-0 text-xs font-semibold" style={{ color: barColor }}>
-                            {it.current_stock} / {it.reorder_level} {it.unit}
-                          </span>
-                        </div>
-                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
-                          <div
-                            className="h-full rounded-full"
-                            style={{ width: `${Math.max(4, ratio * 100)}%`, backgroundColor: barColor }}
-                          />
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-zinc-200 text-left text-xs uppercase tracking-wide text-zinc-500">
+                        <th className="pb-2 pr-3 font-medium">Item</th>
+                        <th className="pb-2 pr-3 font-medium">Type</th>
+                        <th className="pb-2 pr-3 font-medium">Level</th>
+                        <th className="pb-2 text-right font-medium">Stock</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.low_stock_items.items.slice(0, 6).map((it) => {
+                        const ratio = Math.min(1, it.current_stock / (it.reorder_level || 1));
+                        const barColor = ratio < 0.4 ? "#ef4444" : "#f59e0b";
+                        return (
+                          <tr key={`${it.source}-${it.id}`} className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50">
+                            <td className="py-2.5 pr-3">
+                              <span className="block max-w-[9rem] truncate font-medium text-zinc-900">{it.name}</span>
+                            </td>
+                            <td className="py-2.5 pr-3">
+                              <Badge tone={it.source === "ingredient" ? "violet" : "cyan"}>{it.source}</Badge>
+                            </td>
+                            <td className="py-2.5 pr-3">
+                              <div className="h-1.5 w-16 overflow-hidden rounded-full bg-zinc-100">
+                                <div
+                                  className="h-full rounded-full"
+                                  style={{ width: `${Math.max(4, ratio * 100)}%`, backgroundColor: barColor }}
+                                />
+                              </div>
+                            </td>
+                            <td className="py-2.5 text-right text-xs font-semibold" style={{ color: barColor }}>
+                              {it.current_stock} / {it.reorder_level} {it.unit}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </SectionCard>
           </div>

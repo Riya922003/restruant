@@ -15,6 +15,18 @@ const ROLE_LABELS: Record<string, string> = {
   store_manager: "Store Manager",
 };
 
+function initials(name: string) {
+  return name
+    .split(" ")
+    .map((w) => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
+const DARK_GRADIENT = "linear-gradient(135deg, #27272a, #09090b)";
+
 export default function DashboardLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -45,51 +57,65 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-950">
-      <aside className="border-b border-zinc-200 bg-white px-6 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <Link className="font-semibold" href="/dashboard">
-              RestaurantOS
+      <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white/80 backdrop-blur">
+        <div className="mx-auto max-w-7xl px-6">
+          {/* Top row: brand + user */}
+          <div className="flex h-14 items-center justify-between gap-4">
+            <Link href="/dashboard" className="flex items-center gap-2.5">
+              <span
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold text-white shadow-sm"
+                style={{ backgroundImage: DARK_GRADIENT }}
+              >
+                R
+              </span>
+              <span className="text-[15px] font-semibold tracking-tight text-zinc-900">RestaurantOS</span>
             </Link>
-            <nav className="flex flex-wrap gap-1 text-sm text-zinc-600">
-              {navItems.map((item) => {
-                const active =
-                  pathname === item.href ||
-                  (item.href !== "/dashboard" && pathname.startsWith(item.href));
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`rounded px-2.5 py-1 transition ${
-                      active
-                        ? "bg-zinc-900 text-white"
-                        : "hover:bg-zinc-100"
-                    }`}
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right leading-tight">
-              <p className="text-sm font-medium text-zinc-900">{user.full_name}</p>
-              <p className="text-xs text-zinc-500">
-                {ROLE_LABELS[user.role] || user.role}
-              </p>
+            <div className="flex items-center gap-3">
+              <div className="hidden text-right leading-tight sm:block">
+                <p className="text-sm font-medium text-zinc-900">{user.full_name}</p>
+                <p className="text-xs text-zinc-500">{ROLE_LABELS[user.role] || user.role}</p>
+              </div>
+              <span
+                className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold text-white shadow-sm"
+                style={{ backgroundImage: DARK_GRADIENT }}
+                title={user.full_name}
+              >
+                {initials(user.full_name)}
+              </span>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-50"
+              >
+                Sign out
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 transition hover:border-zinc-900 hover:bg-white"
-            >
-              Sign out
-            </button>
           </div>
+
+          {/* Nav row: horizontal pills, no wrap, scrollable on overflow */}
+          <nav className="-mb-px flex gap-1 overflow-x-auto pb-2.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {navItems.map((item) => {
+              const active =
+                pathname === item.href ||
+                (item.href !== "/dashboard" && pathname.startsWith(item.href));
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
+                    active
+                      ? "bg-zinc-900 text-white shadow-sm"
+                      : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
-      </aside>
-      <main className="px-6 py-8">{children}</main>
+      </header>
+      <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
     </div>
   );
 }
