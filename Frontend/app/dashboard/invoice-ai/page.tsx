@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { aiApi, aiDownload, aiList, aiUpload } from "@/lib/ai-api";
 import { useApi } from "@/lib/use-api";
+import { useClientPagination } from "@/lib/use-client-pagination";
 import { formatDateTime } from "@/lib/formatters";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/field";
@@ -17,6 +18,7 @@ import {
 } from "@/components/ui/primitives";
 import { InvoiceReview } from "@/components/ai/invoice-review";
 import { useToast } from "@/components/ui/toast";
+import { Pagination } from "@/components/ui/pagination";
 import { useAppDialog } from "@/components/ui/app-dialog";
 import type { ImportRow, UploadResult } from "@/types/ai";
 
@@ -50,6 +52,9 @@ export default function InvoiceAiPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
+  const rows = data?.data ?? [];
+  const pagination = useClientPagination(rows, [], 10);
+
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
@@ -211,7 +216,7 @@ export default function InvoiceAiPage() {
               </tr>
             </thead>
             <tbody>
-              {data.data.map((r) => (
+              {pagination.items.map((r) => (
                 <tr key={r.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                   <td className="px-4 py-3 font-medium text-zinc-900">
                     <span className="inline-flex items-center gap-1.5">
@@ -266,6 +271,7 @@ export default function InvoiceAiPage() {
               ))}
             </tbody>
           </table>
+                  <Pagination {...pagination} onPageChange={pagination.setPage} />
         </Card>
       )}
     </div>

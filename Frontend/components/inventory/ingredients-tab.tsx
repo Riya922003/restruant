@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
+import { useClientPagination } from "@/lib/use-client-pagination";
 import { useAuth } from "@/lib/auth-context";
 import { Badge } from "@/components/ui/badge";
 import { Field, Input, Select } from "@/components/ui/field";
 import { Button, Card, EmptyState, ErrorState, LoadingState, Modal } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { Pagination } from "@/components/ui/pagination";
 import { formatCurrency } from "@/lib/formatters";
 
 type Ingredient = {
@@ -37,6 +39,9 @@ export function IngredientsTab() {
     [search, lowOnly]
   );
   const sups = useApi(() => api.list<Ref>("/suppliers?limit=100"), []);
+
+  const rows = data?.data ?? [];
+  const pagination = useClientPagination(rows, [search, lowOnly], 10);
 
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: "", unit: "kg", current_stock: "0", reorder_level: "0", cost_per_unit: "0", supplier_id: "" });
@@ -95,7 +100,7 @@ export function IngredientsTab() {
               </tr>
             </thead>
             <tbody>
-              {data.data.map((i) => {
+              {pagination.items.map((i) => {
                 const low = i.current_stock <= i.reorder_level;
                 return (
                   <tr key={i.id} className={`border-b border-zinc-100 ${low ? "bg-amber-50" : "hover:bg-zinc-50"}`}>
@@ -114,6 +119,7 @@ export function IngredientsTab() {
               })}
             </tbody>
           </table>
+                  <Pagination {...pagination} onPageChange={pagination.setPage} />
         </Card>
       )}
 

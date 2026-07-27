@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
+import { useClientPagination } from "@/lib/use-client-pagination";
 import { useAuth } from "@/lib/auth-context";
 import { StatusBadge } from "@/components/ui/badge";
 import { Field, Input, Select } from "@/components/ui/field";
@@ -16,6 +17,7 @@ import {
   PageHeader,
 } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { Pagination } from "@/components/ui/pagination";
 import { useAppDialog } from "@/components/ui/app-dialog";
 
 type Table = {
@@ -41,6 +43,9 @@ export default function TablesPage() {
     () => api.list<Table>(`/tables?limit=100${statusFilter ? `&status=${statusFilter}` : ""}${search ? `&search=${encodeURIComponent(search)}` : ""}`),
     [statusFilter, search]
   );
+
+  const rows = data?.data ?? [];
+  const pagination = useClientPagination(rows, [statusFilter, search], 12);
 
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ label: "", capacity: "4", section: "" });
@@ -120,7 +125,7 @@ export default function TablesPage() {
         />
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {data.data.map((table) => (
+          {pagination.items.map((table) => (
             <Card key={table.id} className="p-4">
               <div className="flex items-start justify-between">
                 <div>
@@ -158,6 +163,11 @@ export default function TablesPage() {
         </div>
       )}
 
+
+
+      {!loading && !error && data && data.data.length > 0 ? (
+        <Pagination {...pagination} onPageChange={pagination.setPage} />
+      ) : null}
       <Modal
         open={showCreate}
         onClose={() => setShowCreate(false)}

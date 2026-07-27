@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { api, API_BASE_URL, getToken, downloadFile } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
+import { useClientPagination } from "@/lib/use-client-pagination";
 import { useAuth } from "@/lib/auth-context";
 import { StatusBadge } from "@/components/ui/badge";
 import { Field, Input, Textarea, Select } from "@/components/ui/field";
 import { Button, Card, EmptyState, ErrorState, LoadingState, Modal, PageHeader } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { Pagination } from "@/components/ui/pagination";
 import { useAppDialog } from "@/components/ui/app-dialog";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 
@@ -50,6 +52,8 @@ export default function InvoicesPage() {
   );
   const suppliers = useApi(() => api.list<Supplier>("/suppliers?limit=100"), []);
   const categories = useApi(() => api.list<Category>("/expense-categories?limit=100"), []);
+  const rows = data?.data ?? [];
+  const pagination = useClientPagination(rows, [status, search], 10);
 
   const [showCreate, setShowCreate] = useState(false);
   const [detail, setDetail] = useState<Invoice | null>(null);
@@ -85,7 +89,7 @@ export default function InvoicesPage() {
               <th className="px-4 py-3 text-right">Total</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">File</th>
             </tr></thead>
             <tbody>
-              {data.data.map((inv) => (
+              {pagination.items.map((inv) => (
                 <tr key={inv.id} className="cursor-pointer border-b border-zinc-100 hover:bg-zinc-50" onClick={() => openDetail(inv.id)}>
                   <td className="px-4 py-3 font-mono text-xs text-zinc-800">{inv.invoice_number}</td>
                   <td className="px-4 py-3 text-zinc-700">{supplierName(inv.supplier_id)}</td>
@@ -103,6 +107,7 @@ export default function InvoicesPage() {
               ))}
             </tbody>
           </table>
+                  <Pagination {...pagination} onPageChange={pagination.setPage} />
         </Card>
       )}
 

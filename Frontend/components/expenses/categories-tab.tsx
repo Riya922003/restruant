@@ -3,10 +3,12 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
+import { useClientPagination } from "@/lib/use-client-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Field, Input, Textarea } from "@/components/ui/field";
 import { Button, Card, EmptyState, ErrorState, LoadingState, Modal } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { Pagination } from "@/components/ui/pagination";
 import { useAppDialog } from "@/components/ui/app-dialog";
 
 type Category = { id: number; name: string; description: string | null; is_active: boolean };
@@ -19,6 +21,9 @@ export function CategoriesTab({ canManage }: { canManage: boolean }) {
     () => api.list<Category>(`/expense-categories?limit=100&is_active=all${search ? `&search=${encodeURIComponent(search)}` : ""}`),
     [search]
   );
+
+  const rows = data?.data ?? [];
+  const pagination = useClientPagination(rows, [search], 10);
 
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", description: "" });
@@ -88,7 +93,7 @@ export function CategoriesTab({ canManage }: { canManage: boolean }) {
               </tr>
             </thead>
             <tbody>
-              {data.data.map((c) => (
+              {pagination.items.map((c) => (
                 <tr key={c.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                   <td className="px-4 py-3 font-medium text-zinc-900">{c.name}</td>
                   <td className="px-4 py-3 text-zinc-600">{c.description ?? "-"}</td>
@@ -110,6 +115,7 @@ export function CategoriesTab({ canManage }: { canManage: boolean }) {
               ))}
             </tbody>
           </table>
+                  <Pagination {...pagination} onPageChange={pagination.setPage} />
         </Card>
       )}
 

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
+import { useClientPagination } from "@/lib/use-client-pagination";
 import { useAuth } from "@/lib/auth-context";
 import { formatDateTime, humanize } from "@/lib/formatters";
 import type { UserRole } from "@/types/roles";
@@ -18,6 +19,7 @@ import {
   PageHeader,
 } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { Pagination } from "@/components/ui/pagination";
 import { useAppDialog } from "@/components/ui/app-dialog";
 
 type StaffUser = {
@@ -57,6 +59,9 @@ export default function StaffPage() {
       ),
     [search, roleFilter, activeFilter]
   );
+
+  const rows = data?.data ?? [];
+  const pagination = useClientPagination(rows, [search, roleFilter, activeFilter], 10);
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<StaffUser | null>(null);
@@ -213,7 +218,7 @@ export default function StaffPage() {
               </tr>
             </thead>
             <tbody>
-              {data.data.map((u) => {
+              {pagination.items.map((u) => {
                 const manageable = canManageRow(u);
                 return (
                   <tr key={u.id} className="border-b border-zinc-100 hover:bg-zinc-50">
@@ -261,6 +266,7 @@ export default function StaffPage() {
               })}
             </tbody>
           </table>
+                  <Pagination {...pagination} onPageChange={pagination.setPage} />
         </Card>
       )}
 

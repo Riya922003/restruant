@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
+import { useClientPagination } from "@/lib/use-client-pagination";
 import { useAuth } from "@/lib/auth-context";
 import { Badge } from "@/components/ui/badge";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
@@ -16,6 +17,7 @@ import {
   PageHeader,
 } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { Pagination } from "@/components/ui/pagination";
 import { useAppDialog } from "@/components/ui/app-dialog";
 
 type Recipe = {
@@ -57,6 +59,9 @@ export default function RecipesPage() {
     () => api.list<Recipe>(`/recipes?limit=100${search ? `&search=${encodeURIComponent(search)}` : ""}`),
     [search]
   );
+
+  const rows = data?.data ?? [];
+  const pagination = useClientPagination(rows, [search], 10);
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const detail = useApi<RecipeDetail | null>(
@@ -131,7 +136,7 @@ export default function RecipesPage() {
                 </tr>
               </thead>
               <tbody>
-                {data.data.map((r) => (
+                {pagination.items.map((r) => (
                   <tr
                     key={r.id}
                     onClick={() => setSelectedId(r.id)}
@@ -151,7 +156,8 @@ export default function RecipesPage() {
                 ))}
               </tbody>
             </table>
-          </Card>
+                    <Pagination {...pagination} onPageChange={pagination.setPage} />
+        </Card>
 
           <Card className="p-4">
             {!selectedId ? (

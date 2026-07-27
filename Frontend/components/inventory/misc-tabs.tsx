@@ -3,10 +3,12 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
+import { useClientPagination } from "@/lib/use-client-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Field, Input, Textarea } from "@/components/ui/field";
 import { Button, Card, EmptyState, ErrorState, LoadingState, Modal } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { Pagination } from "@/components/ui/pagination";
 import { formatDateTime, humanize } from "@/lib/formatters";
 
 type Warehouse = { id: number; name: string; location: string | null; type: string; is_active: boolean };
@@ -19,6 +21,9 @@ export function WarehousesTab({ canManage }: { canManage: boolean }) {
     () => api.list<Warehouse>(`/warehouses?limit=100&is_active=all${search ? `&search=${encodeURIComponent(search)}` : ""}`),
     [search]
   );
+  const rows = data?.data ?? [];
+  const pagination = useClientPagination(rows, [search], 10);
+
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", location: "", type: "store" });
   const [err, setErr] = useState<string | null>(null);
@@ -47,7 +52,7 @@ export function WarehousesTab({ canManage }: { canManage: boolean }) {
               <th className="px-4 py-3">Name</th><th className="px-4 py-3">Location</th><th className="px-4 py-3">Type</th><th className="px-4 py-3">Status</th>
             </tr></thead>
             <tbody>
-              {data.data.map((w) => (
+              {pagination.items.map((w) => (
                 <tr key={w.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                   <td className="px-4 py-3 font-medium text-zinc-900">{w.name}</td>
                   <td className="px-4 py-3 text-zinc-600">{w.location ?? "-"}</td>
@@ -57,6 +62,7 @@ export function WarehousesTab({ canManage }: { canManage: boolean }) {
               ))}
             </tbody>
           </table>
+                  <Pagination {...pagination} onPageChange={pagination.setPage} />
         </Card>
       )}
       <Modal open={open} onClose={() => setOpen(false)} title="New warehouse"
@@ -79,6 +85,9 @@ export function CategoriesTab({ canManage }: { canManage: boolean }) {
     () => api.list<Category>(`/product-categories?limit=100&is_active=all${search ? `&search=${encodeURIComponent(search)}` : ""}`),
     [search]
   );
+  const rows = data?.data ?? [];
+  const pagination = useClientPagination(rows, [search], 10);
+
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", description: "" });
   const [err, setErr] = useState<string | null>(null);
@@ -107,7 +116,7 @@ export function CategoriesTab({ canManage }: { canManage: boolean }) {
               <th className="px-4 py-3">Name</th><th className="px-4 py-3">Description</th><th className="px-4 py-3">Status</th>
             </tr></thead>
             <tbody>
-              {data.data.map((c) => (
+              {pagination.items.map((c) => (
                 <tr key={c.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                   <td className="px-4 py-3 font-medium text-zinc-900">{c.name}</td>
                   <td className="px-4 py-3 text-zinc-600">{c.description ?? "-"}</td>
@@ -116,6 +125,7 @@ export function CategoriesTab({ canManage }: { canManage: boolean }) {
               ))}
             </tbody>
           </table>
+                  <Pagination {...pagination} onPageChange={pagination.setPage} />
         </Card>
       )}
       <Modal open={open} onClose={() => setOpen(false)} title="New product category"
@@ -141,6 +151,9 @@ export function MovementsTab() {
     () => api.list<Movement>(`/stock-movements?limit=100${search ? `&search=${encodeURIComponent(search)}` : ""}`),
     [search]
   );
+  const rows = data?.data ?? [];
+  const pagination = useClientPagination(rows, [search], 10);
+
   const toneFor = (t: string) => (t === "stock_in" || t === "transfer" ? "green" : t === "adjustment" ? "blue" : "red");
   return (
     <div>
@@ -155,7 +168,7 @@ export function MovementsTab() {
               <th className="px-4 py-3">Reference</th><th className="px-4 py-3">Reason</th>
             </tr></thead>
             <tbody>
-              {data.data.map((m) => (
+              {pagination.items.map((m) => (
                 <tr key={m.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                   <td className="px-4 py-3 text-zinc-600">{formatDateTime(m.created_at)}</td>
                   <td className="px-4 py-3"><Badge tone={toneFor(m.movement_type)}>{humanize(m.movement_type)}</Badge></td>
@@ -166,6 +179,7 @@ export function MovementsTab() {
               ))}
             </tbody>
           </table>
+                  <Pagination {...pagination} onPageChange={pagination.setPage} />
         </Card>
       )}
     </div>

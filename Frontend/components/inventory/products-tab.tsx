@@ -3,10 +3,12 @@
 import { useState } from "react";
 import { api, downloadFile, uploadForm } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
+import { useClientPagination } from "@/lib/use-client-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Field, Input, Select } from "@/components/ui/field";
 import { Button, Card, EmptyState, ErrorState, LoadingState, Modal } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { Pagination } from "@/components/ui/pagination";
 import { formatCurrency } from "@/lib/formatters";
 
 type Product = {
@@ -59,6 +61,9 @@ export function ProductsTab({ canManage }: { canManage: boolean }) {
   const [importReport, setImportReport] = useState<ImportReport | null>(null);
   const [importing, setImporting] = useState(false);
   const [importErr, setImportErr] = useState<string | null>(null);
+
+  const rows = data?.data ?? [];
+  const pagination = useClientPagination(rows, [search, lowOnly], 10);
 
   const catName = (id: number | null) => cats.data?.data.find((c) => c.id === id)?.name ?? "-";
 
@@ -189,7 +194,7 @@ export function ProductsTab({ canManage }: { canManage: boolean }) {
               </tr>
             </thead>
             <tbody>
-              {data.data.map((p) => {
+              {pagination.items.map((p) => {
                 const low = p.current_stock <= p.reorder_level;
                 return (
                   <tr key={p.id} className={`border-b border-zinc-100 ${low ? "bg-amber-50" : "hover:bg-zinc-50"}`}>
@@ -211,6 +216,7 @@ export function ProductsTab({ canManage }: { canManage: boolean }) {
               })}
             </tbody>
           </table>
+                  <Pagination {...pagination} onPageChange={pagination.setPage} />
         </Card>
       )}
 

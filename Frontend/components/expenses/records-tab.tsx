@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { api, downloadFile } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
+import { useClientPagination } from "@/lib/use-client-pagination";
 import { Field, Input, Textarea, Select } from "@/components/ui/field";
 import { Button, Card, EmptyState, ErrorState, LoadingState, Modal, StatCard } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { Pagination } from "@/components/ui/pagination";
 import { useAppDialog } from "@/components/ui/app-dialog";
 import { formatCurrency, formatDate, humanize } from "@/lib/formatters";
 
@@ -54,6 +56,9 @@ export function RecordsTab({ canWrite, canDelete }: { canWrite: boolean; canDele
   );
   const cats = useApi(() => api.list<Category>("/expense-categories?limit=100"), []);
   const sups = useApi(() => api.list<Ref>("/suppliers?limit=100"), []);
+
+  const rows = data?.data ?? [];
+  const pagination = useClientPagination(rows, [categoryId, fromDate, toDate, search], 10);
 
   const catName = (id: number) => cats.data?.data.find((c) => c.id === id)?.name ?? "-";
   const total = (data?.data ?? []).reduce((sum, r) => sum + Number(r.amount ?? 0), 0);
@@ -195,7 +200,7 @@ export function RecordsTab({ canWrite, canDelete }: { canWrite: boolean; canDele
               </tr>
             </thead>
             <tbody>
-              {data.data.map((r) => (
+              {pagination.items.map((r) => (
                 <tr key={r.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                   <td className="px-4 py-3 text-zinc-600">{formatDate(r.expense_date)}</td>
                   <td className="px-4 py-3 font-medium text-zinc-900">{catName(r.category_id)}</td>
@@ -220,6 +225,7 @@ export function RecordsTab({ canWrite, canDelete }: { canWrite: boolean; canDele
               ))}
             </tbody>
           </table>
+                  <Pagination {...pagination} onPageChange={pagination.setPage} />
         </Card>
       )}
 

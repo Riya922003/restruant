@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
+import { useClientPagination } from "@/lib/use-client-pagination";
 import { useAuth } from "@/lib/auth-context";
 import { Badge } from "@/components/ui/badge";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
@@ -16,6 +17,7 @@ import {
   PageHeader,
 } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { Pagination } from "@/components/ui/pagination";
 import { useAppDialog } from "@/components/ui/app-dialog";
 import { formatCurrency } from "@/lib/formatters";
 
@@ -63,6 +65,9 @@ export default function MenuPage() {
     if (search) params.set("search", search);
     return api.list<MenuItem>(`/menu-items?${params.toString()}`);
   }, [categoryFilter, availabilityFilter, search]);
+
+  const rows = data?.data ?? [];
+  const pagination = useClientPagination(rows, [categoryFilter, availabilityFilter, search], 10);
 
   const categoryName = (id: number) =>
     categories.data?.data.find((c) => c.id === id)?.name ?? "-";
@@ -197,7 +202,7 @@ export default function MenuPage() {
               </tr>
             </thead>
             <tbody>
-              {data.data.map((item) => (
+              {pagination.items.map((item) => (
                 <tr key={item.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                   <td className="px-4 py-2.5 font-medium text-zinc-950">{item.name}</td>
                   <td className="px-4 py-2.5 text-zinc-600">{categoryName(item.category_id)}</td>
@@ -228,6 +233,7 @@ export default function MenuPage() {
               ))}
             </tbody>
           </table>
+                  <Pagination {...pagination} onPageChange={pagination.setPage} />
         </Card>
       )}
 

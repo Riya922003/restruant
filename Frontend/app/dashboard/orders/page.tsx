@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { api, downloadFile } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
+import { useClientPagination } from "@/lib/use-client-pagination";
 import { useOrderEvents } from "@/lib/use-order-events";
 import { useAuth } from "@/lib/auth-context";
 import { StatusBadge } from "@/components/ui/badge";
 import { Field, Input, Select } from "@/components/ui/field";
 import { formatCurrency, formatDateTime, humanize } from "@/lib/formatters";
 import { useToast } from "@/components/ui/toast";
+import { Pagination } from "@/components/ui/pagination";
 import { useAppDialog } from "@/components/ui/app-dialog";
 import {
   Button,
@@ -101,6 +103,8 @@ export default function OrdersPage() {
   );
 
   useOrderEvents(() => refresh(), { poll: refresh, pollMs: 5000 });
+  const rows = data?.data ?? [];
+  const pagination = useClientPagination(rows, [statusFilter, paymentFilter, search], 10);
 
   const [showCreate, setShowCreate] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
@@ -174,7 +178,7 @@ export default function OrdersPage() {
               </tr>
             </thead>
             <tbody>
-              {data.data.map((order) => (
+              {pagination.items.map((order) => (
                 <tr
                   key={order.id}
                   onClick={() => setDetailId(order.id)}
@@ -195,6 +199,7 @@ export default function OrdersPage() {
               ))}
             </tbody>
           </table>
+                  <Pagination {...pagination} onPageChange={pagination.setPage} />
         </Card>
       )}
 
