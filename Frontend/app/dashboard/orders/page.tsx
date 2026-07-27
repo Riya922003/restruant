@@ -416,7 +416,7 @@ function CreateOrderModal({ onClose, onCreated }: { onClose: () => void; onCreat
   const [formError, setFormError] = useState<string | null>(null);
 
   const tables = useApi(() => api.list<Table>("/tables?limit=100"), []);
-  const menuItems = useApi(() => api.list<MenuItem>("/menu-items?limit=200&is_available=true"), []);
+  const menuItems = useApi(() => api.list<MenuItem>("/menu-items?limit=100&is_available=true"), []);
 
   function addLine() {
     const id = Number(selectedItem);
