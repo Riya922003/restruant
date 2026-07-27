@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { navForRole } from "@/lib/navigation";
+import { NotificationBell } from "@/components/ui/notification-bell";
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner",
@@ -71,6 +72,7 @@ export default function DashboardLayout({
               <span className="text-[15px] font-semibold tracking-tight text-zinc-900">RestaurantOS</span>
             </Link>
             <div className="flex items-center gap-3">
+              <NotificationBell />
               <div className="hidden text-right leading-tight sm:block">
                 <p className="text-sm font-medium text-zinc-900">{user.full_name}</p>
                 <p className="text-xs text-zinc-500">{ROLE_LABELS[user.role] || user.role}</p>
