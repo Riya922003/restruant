@@ -8,7 +8,7 @@
     "start": "node src/server.js",
     "migrate": "node src/db/migrate.js",
     "seed": "node src/db/seed.js",
-    "test": "echo \"No backend tests configured yet\""
+    "test": "node tests/run-tests.js"
   },
   "keywords": [],
   "author": "",
@@ -22,10 +22,11 @@
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.2.0",
     "pg": "^8.16.3",
-    "ws": "^8.21.1",
+    "ws": "8.21.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "nodemon": "^3.1.14",
+    "supertest": "7.1.4"
   }
 }

@@ -65,9 +65,13 @@ async function migrate() {
   }
 }
 
-migrate()
-  .then(() => pool.end())
-  .catch((error) => {
-    console.error("Migration failed:", error.message);
-    pool.end().finally(() => process.exit(1));
-  });
+if (require.main === module) {
+  migrate()
+    .then(() => pool.end())
+    .catch((error) => {
+      console.error("Migration failed:", error.message);
+      pool.end().finally(() => process.exit(1));
+    });
+}
+
+module.exports = { migrate };

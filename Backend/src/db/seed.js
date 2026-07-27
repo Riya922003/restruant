@@ -86,9 +86,13 @@ async function seed() {
   console.log(`  orders:             ${ctx.orderCount} (${ctx.orderItemCount} line items)`);
 }
 
-seed()
-  .then(() => pool.end())
-  .catch((error) => {
-    console.error("Seed failed:", error.message);
-    pool.end().finally(() => process.exit(1));
-  });
+if (require.main === module) {
+  seed()
+    .then(() => pool.end())
+    .catch((error) => {
+      console.error("Seed failed:", error.message);
+      pool.end().finally(() => process.exit(1));
+    });
+}
+
+module.exports = { seed };
