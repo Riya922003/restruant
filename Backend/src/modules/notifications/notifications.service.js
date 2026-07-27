@@ -43,9 +43,10 @@ async function getFeed(user) {
   const u = await pool.query("SELECT notifications_seen_at FROM users WHERE id = $1", [user.id]);
   const seenAt = u.rows[0]?.notifications_seen_at ?? null;
 
-  // Exports are the caller's own downloads, not noteworthy events; hide them.
-  const where = ["a.action NOT LIKE '%.exported'"];
-  const params = [];
+  // Exports are the caller's own downloads, not noteworthy events; hide them. The bell
+  // is also for other people's activity, so do not notify users about their own actions.
+  const where = ["a.action NOT LIKE '%.exported'", "a.actor_user_id IS DISTINCT FROM $1"];
+  const params = [user.id];
   const allowed = user.role === "owner" || user.role === "manager" ? null : ROLE_ENTITY_TYPES[user.role];
   if (allowed) {
     params.push(allowed);
@@ -89,3 +90,4 @@ async function markSeen(user) {
 }
 
 module.exports = { getFeed, markSeen };
+
