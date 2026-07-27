@@ -15,6 +15,7 @@ import {
   Modal,
   PageHeader,
 } from "@/components/ui/primitives";
+import { useToast } from "@/components/ui/toast";
 
 type Table = {
   id: number;
@@ -27,6 +28,7 @@ type Table = {
 const STATUSES = ["available", "occupied", "reserved", "out_of_service"];
 
 export default function TablesPage() {
+  const toast = useToast();
   const { user } = useAuth();
   const canManage = user?.role === "owner" || user?.role === "manager";
   const canSetStatus = canManage || user?.role === "waiter";
@@ -54,6 +56,7 @@ export default function TablesPage() {
       });
       setShowCreate(false);
       setForm({ label: "", capacity: "4", section: "" });
+      toast.success("Table created");
       refetch();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to create table");
@@ -63,17 +66,23 @@ export default function TablesPage() {
   }
 
   async function changeStatus(id: number, status: string) {
-    await api.patch(`/tables/${id}`, { status });
-    refetch();
+    try {
+      await api.patch(`/tables/${id}`, { status });
+      toast.success("Table status updated");
+      refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update status");
+    }
   }
 
   async function removeTable(id: number) {
     if (!confirm("Delete this table?")) return;
     try {
       await api.del(`/tables/${id}`);
+      toast.success("Table deleted");
       refetch();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to delete");
+      toast.error(err instanceof Error ? err.message : "Failed to delete");
     }
   }
 

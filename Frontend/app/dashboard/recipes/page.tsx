@@ -15,6 +15,7 @@ import {
   Modal,
   PageHeader,
 } from "@/components/ui/primitives";
+import { useToast } from "@/components/ui/toast";
 
 type Recipe = {
   id: number;
@@ -44,6 +45,7 @@ type FormLine = { ingredient_id: string; quantity: string; unit: string };
 const UNITS = ["kg", "g", "l", "ml", "unit", "pack", "dozen", "box"];
 
 export default function RecipesPage() {
+  const toast = useToast();
   const { user } = useAuth();
   const canManage =
     user?.role === "owner" || user?.role === "manager" || user?.role === "chef";
@@ -67,9 +69,10 @@ export default function RecipesPage() {
     try {
       await api.del(`/recipes/${id}`);
       if (selectedId === id) setSelectedId(null);
+      toast.success("Recipe deleted");
       refetch();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to delete");
+      toast.error(err instanceof Error ? err.message : "Failed to delete");
     }
   }
 
@@ -77,9 +80,10 @@ export default function RecipesPage() {
     if (!confirm("Remove this ingredient?")) return;
     try {
       await api.del(`/recipes/${recipeId}/ingredients/${lineId}`);
+      toast.success("Ingredient removed");
       detail.refetch();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to remove");
+      toast.error(err instanceof Error ? err.message : "Failed to remove");
     }
   }
 
@@ -226,6 +230,7 @@ export default function RecipesPage() {
 }
 
 function CreateRecipeModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const toast = useToast();
   const menuItems = useApi(() => api.list<MenuItem>("/menu-items?limit=100"), []);
   const ingredients = useApi<Ingredient[]>(async () => {
     try {
@@ -271,6 +276,7 @@ function CreateRecipeModal({ onClose, onCreated }: { onClose: () => void; onCrea
         instructions: form.instructions || undefined,
         ...(ingredientPayload.length ? { ingredients: ingredientPayload } : {}),
       });
+      toast.success("Recipe created");
       onCreated();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to create recipe");

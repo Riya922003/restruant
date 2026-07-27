@@ -6,6 +6,7 @@ import { useApi } from "@/lib/use-api";
 import { Badge } from "@/components/ui/badge";
 import { Field, Input, Select } from "@/components/ui/field";
 import { Button, Card, EmptyState, ErrorState, LoadingState, Modal } from "@/components/ui/primitives";
+import { useToast } from "@/components/ui/toast";
 import { formatCurrency } from "@/lib/formatters";
 
 type Product = {
@@ -35,6 +36,7 @@ const UNITS = ["kg", "g", "l", "ml", "unit", "pack", "dozen", "box"];
 const MOVE_TYPES = ["stock_in", "stock_out", "adjustment", "wastage", "transfer"];
 
 export function ProductsTab({ canManage }: { canManage: boolean }) {
+  const toast = useToast();
   const [search, setSearch] = useState("");
   const [lowOnly, setLowOnly] = useState(false);
   const { data, loading, error, refetch } = useApi(
@@ -72,6 +74,7 @@ export function ProductsTab({ canManage }: { canManage: boolean }) {
       });
       setShowCreate(false);
       setForm({ sku: "", name: "", unit: "unit", category_id: "", warehouse_id: "", supplier_id: "", reorder_level: "0", cost_price: "0", current_stock: "0" });
+      toast.success(`Product "${form.name}" created`);
       refetch();
     } catch (e) { setErr(e instanceof Error ? e.message : "Failed"); } finally { setSaving(false); }
   }
@@ -83,8 +86,9 @@ export function ProductsTab({ canManage }: { canManage: boolean }) {
     const qs = q.toString();
     try {
       await downloadFile(`/products/export${qs ? `?${qs}` : ""}`, "products.csv");
+      toast.success("Products exported");
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Export failed");
+      toast.error(e instanceof Error ? e.message : "Export failed");
     }
   }
 
@@ -125,7 +129,7 @@ export function ProductsTab({ canManage }: { canManage: boolean }) {
       fd.append("file", importFile);
       const res = await uploadForm<{ imported: number }>("/products/import", fd);
       setShowImport(false);
-      alert(`Imported ${res.imported} product(s).`);
+      toast.success(`Imported ${res.imported} product(s)`);
       refetch();
     } catch (e) {
       setImportErr(e instanceof Error ? e.message : "Import failed");
@@ -138,7 +142,7 @@ export function ProductsTab({ canManage }: { canManage: boolean }) {
     try {
       await downloadFile("/products/import/template", "products-import-template.csv");
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Failed to download template");
+      toast.error(e instanceof Error ? e.message : "Failed to download template");
     }
   }
 
@@ -152,8 +156,10 @@ export function ProductsTab({ canManage }: { canManage: boolean }) {
       };
       if (moveForm.movement_type === "adjustment") body.direction = moveForm.direction;
       await api.post("/stock-movements", body);
+      const movedName = move.name;
       setMove(null);
       setMoveForm({ movement_type: "stock_in", quantity: "1", reason: "", direction: "increase" });
+      toast.success(`Stock updated for ${movedName}`);
       refetch();
     } catch (e) { setErr(e instanceof Error ? e.message : "Failed"); } finally { setSaving(false); }
   }

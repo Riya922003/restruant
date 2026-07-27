@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import { Badge } from "@/components/ui/badge";
 import { Field, Input, Select } from "@/components/ui/field";
 import { Button, Card, EmptyState, ErrorState, LoadingState, Modal } from "@/components/ui/primitives";
+import { useToast } from "@/components/ui/toast";
 import { formatCurrency } from "@/lib/formatters";
 
 type Ingredient = {
@@ -23,6 +24,7 @@ type Ref = { id: number; name: string };
 const UNITS = ["kg", "g", "l", "ml", "unit", "pack", "dozen", "box"];
 
 export function IngredientsTab() {
+  const toast = useToast();
   const { user } = useAuth();
   const role = user?.role ?? "";
   const canCreate = ["owner", "manager", "store_manager"].includes(role);
@@ -53,6 +55,7 @@ export function IngredientsTab() {
       });
       setShowCreate(false);
       setForm({ name: "", unit: "kg", current_stock: "0", reorder_level: "0", cost_per_unit: "0", supplier_id: "" });
+      toast.success(`Ingredient "${form.name}" created`);
       refetch();
     } catch (e) { setErr(e instanceof Error ? e.message : "Failed"); } finally { setSaving(false); }
   }
@@ -62,7 +65,9 @@ export function IngredientsTab() {
     setSaving(true); setErr(null);
     try {
       await api.post(`/ingredients/${adjust.id}/adjust-stock`, { delta: Number(adjustForm.delta), reason: adjustForm.reason });
+      const adjustedName = adjust.name;
       setAdjust(null); setAdjustForm({ delta: "", reason: "" });
+      toast.success(`Stock adjusted for ${adjustedName}`);
       refetch();
     } catch (e) { setErr(e instanceof Error ? e.message : "Failed"); } finally { setSaving(false); }
   }

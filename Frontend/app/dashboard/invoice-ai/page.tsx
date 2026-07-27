@@ -16,6 +16,7 @@ import {
   PageHeader,
 } from "@/components/ui/primitives";
 import { InvoiceReview } from "@/components/ai/invoice-review";
+import { useToast } from "@/components/ui/toast";
 import type { ImportRow, UploadResult } from "@/types/ai";
 
 type Supplier = { id: number; name: string };
@@ -33,6 +34,7 @@ const STATUS_TONE: Record<string, "zinc" | "blue" | "amber" | "violet" | "red" |
 const ACCEPT = ".pdf,.png,.jpg,.jpeg,.webp";
 
 export default function InvoiceAiPage() {
+  const toast = useToast();
   const { data, loading, error, refetch } = useApi(
     () => aiList<ImportRow>("/ai/invoices/imports?limit=100"),
     [],
@@ -70,6 +72,7 @@ export default function InvoiceAiPage() {
       await aiUpload<UploadResult>("/ai/invoices/upload", fd);
       setFiles([]);
       if (fileInput.current) fileInput.current.value = "";
+      toast.success("Files uploaded");
       refetch();
     } catch (err) {
       setUploadError(
@@ -89,9 +92,10 @@ export default function InvoiceAiPage() {
     if (!trimmed || trimmed === current) return;
     try {
       await aiApi.patch(`/ai/invoices/imports/${id}`, { original_filename: trimmed });
+      toast.success("Renamed");
       refetch();
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : "Rename failed");
+      toast.error(err instanceof ApiError ? err.message : "Rename failed");
     }
   }
 
@@ -99,9 +103,10 @@ export default function InvoiceAiPage() {
     if (!confirm(`Delete "${name}"? This removes the uploaded file and its extraction.`)) return;
     try {
       await aiApi.del(`/ai/invoices/imports/${id}`);
+      toast.success("Import deleted");
       refetch();
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : "Delete failed");
+      toast.error(err instanceof ApiError ? err.message : "Delete failed");
     }
   }
 
@@ -111,8 +116,9 @@ export default function InvoiceAiPage() {
     if (to) qs.set("to", to);
     try {
       await aiDownload(`/ai/invoices/expense-register.xlsx?${qs.toString()}`, "expense-register.xlsx");
+      toast.success("Invoice exported");
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : "Export failed");
+      toast.error(err instanceof ApiError ? err.message : "Export failed");
     }
   }
 

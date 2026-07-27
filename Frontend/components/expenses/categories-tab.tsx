@@ -6,10 +6,12 @@ import { useApi } from "@/lib/use-api";
 import { Badge } from "@/components/ui/badge";
 import { Field, Input, Textarea } from "@/components/ui/field";
 import { Button, Card, EmptyState, ErrorState, LoadingState, Modal } from "@/components/ui/primitives";
+import { useToast } from "@/components/ui/toast";
 
 type Category = { id: number; name: string; description: string | null; is_active: boolean };
 
 export function CategoriesTab({ canManage }: { canManage: boolean }) {
+  const toast = useToast();
   const [search, setSearch] = useState("");
   const { data, loading, error, refetch } = useApi(
     () => api.list<Category>(`/expense-categories?limit=100&is_active=all${search ? `&search=${encodeURIComponent(search)}` : ""}`),
@@ -28,6 +30,7 @@ export function CategoriesTab({ canManage }: { canManage: boolean }) {
       await api.post("/expense-categories", { name: form.name, description: form.description || null });
       setOpen(false);
       setForm({ name: "", description: "" });
+      toast.success("Category created");
       refetch();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed");
@@ -40,9 +43,10 @@ export function CategoriesTab({ canManage }: { canManage: boolean }) {
     if (!confirm(`Deactivate ${c.name}?`)) return;
     try {
       await api.del(`/expense-categories/${c.id}`);
+      toast.success("Category deactivated");
       refetch();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Failed to deactivate");
+      toast.error(e instanceof Error ? e.message : "Failed to deactivate");
     }
   }
 

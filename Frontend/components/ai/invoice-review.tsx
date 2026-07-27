@@ -6,6 +6,7 @@ import { ApiError } from "@/lib/api";
 import { formatCurrency } from "@/lib/formatters";
 import { Button, Card, LoadingState } from "@/components/ui/primitives";
 import { Field, Input, Select } from "@/components/ui/field";
+import { useToast } from "@/components/ui/toast";
 import type { ExtractedData, ImportDetail, InvoiceLineItem } from "@/types/ai";
 
 type Supplier = { id: number; name: string };
@@ -23,6 +24,7 @@ export function InvoiceReview({
   onClose: () => void;
   onChanged: () => void;
 }) {
+  const toast = useToast();
   const [detail, setDetail] = useState<ImportDetail | null>(null);
   const [ed, setEd] = useState<ExtractedData | null>(null);
   const [supplierId, setSupplierId] = useState<string>("");
@@ -91,12 +93,13 @@ export function InvoiceReview({
     );
   }
 
-  async function run(label: string, fn: () => Promise<unknown>) {
+  async function run(label: string, message: string, fn: () => Promise<unknown>) {
     setBusy(label);
     setError(null);
     try {
       await fn();
       onChanged();
+      toast.success(message);
       onClose();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Action failed");
@@ -105,15 +108,15 @@ export function InvoiceReview({
   }
 
   const save = () =>
-    run("save", () => aiApi.patch(`/ai/invoices/imports/${importId}`, { extracted_data: ed }));
+    run("save", "Changes saved", () => aiApi.patch(`/ai/invoices/imports/${importId}`, { extracted_data: ed }));
   const approve = () =>
-    run("approve", () =>
+    run("approve", "Invoice approved", () =>
       aiApi.post(`/ai/invoices/imports/${importId}/approve`, {
         supplier_id: supplierId ? Number(supplierId) : null,
         create_expense_record: createExpense,
       }),
     );
-  const reject = () => run("reject", () => aiApi.post(`/ai/invoices/imports/${importId}/reject`));
+  const reject = () => run("reject", "Extraction rejected", () => aiApi.post(`/ai/invoices/imports/${importId}/reject`));
 
   return (
     <Card className="p-5">

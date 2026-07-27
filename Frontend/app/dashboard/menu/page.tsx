@@ -15,6 +15,7 @@ import {
   Modal,
   PageHeader,
 } from "@/components/ui/primitives";
+import { useToast } from "@/components/ui/toast";
 import { formatCurrency } from "@/lib/formatters";
 
 type Category = {
@@ -39,6 +40,7 @@ type MenuItem = {
 };
 
 export default function MenuPage() {
+  const toast = useToast();
   const { user } = useAuth();
   const canManage = user?.role === "owner" || user?.role === "manager";
   const canToggle = canManage || user?.role === "chef";
@@ -90,6 +92,7 @@ export default function MenuPage() {
         ...(form.description ? { description: form.description } : {}),
       });
       setShowCreate(false);
+      const createdName = form.name;
       setForm({
         category_id: "",
         name: "",
@@ -98,6 +101,7 @@ export default function MenuPage() {
         prep_time_minutes: "",
         description: "",
       });
+      toast.success(`Menu item "${createdName}" created`);
       refetch();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to create item");
@@ -107,19 +111,25 @@ export default function MenuPage() {
   }
 
   async function toggleAvailability(item: MenuItem) {
-    await api.patch(`/menu-items/${item.id}/availability`, {
-      is_available: !item.is_available,
-    });
-    refetch();
+    try {
+      await api.patch(`/menu-items/${item.id}/availability`, {
+        is_available: !item.is_available,
+      });
+      toast.success(item.is_available ? "Marked unavailable" : "Marked available");
+      refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update availability");
+    }
   }
 
   async function removeItem(id: number) {
     if (!confirm("Delete this item?")) return;
     try {
       await api.del(`/menu-items/${id}`);
+      toast.success("Menu item deleted");
       refetch();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to delete");
+      toast.error(err instanceof Error ? err.message : "Failed to delete");
     }
   }
 

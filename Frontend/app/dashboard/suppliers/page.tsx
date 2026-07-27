@@ -15,6 +15,7 @@ import {
   Modal,
   PageHeader,
 } from "@/components/ui/primitives";
+import { useToast } from "@/components/ui/toast";
 
 type Supplier = {
   id: number;
@@ -30,6 +31,7 @@ type Supplier = {
 const EMPTY = { name: "", contact_name: "", email: "", phone: "", address: "", payment_terms: "" };
 
 export default function SuppliersPage() {
+  const toast = useToast();
   const { user } = useAuth();
   const canManage = ["owner", "manager", "store_manager"].includes(user?.role ?? "");
 
@@ -81,6 +83,7 @@ export default function SuppliersPage() {
       if (editing) await api.patch(`/suppliers/${editing.id}`, body);
       else await api.post("/suppliers", body);
       setOpen(false);
+      toast.success(editing ? "Supplier updated" : "Supplier created");
       refetch();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to save supplier");
@@ -96,8 +99,9 @@ export default function SuppliersPage() {
     const qs = q.toString();
     try {
       await downloadFile(`/suppliers/export${qs ? `?${qs}` : ""}`, "suppliers.csv");
+      toast.success("Suppliers exported");
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Export failed");
+      toast.error(err instanceof Error ? err.message : "Export failed");
     }
   }
 
@@ -105,9 +109,10 @@ export default function SuppliersPage() {
     if (!confirm(`Deactivate ${s.name}?`)) return;
     try {
       await api.del(`/suppliers/${s.id}`);
+      toast.success("Supplier deactivated");
       refetch();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to deactivate");
+      toast.error(err instanceof Error ? err.message : "Failed to deactivate");
     }
   }
 

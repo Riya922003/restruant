@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import { StatusBadge } from "@/components/ui/badge";
 import { Field, Input, Select } from "@/components/ui/field";
 import { formatCurrency, formatDateTime, humanize } from "@/lib/formatters";
+import { useToast } from "@/components/ui/toast";
 import {
   Button,
   Card,
@@ -78,6 +79,7 @@ const NEXT_STATUS: Record<string, string> = {
 };
 
 export default function OrdersPage() {
+  const toast = useToast();
   const { user } = useAuth();
   const canCreate = user?.role === "owner" || user?.role === "manager" || user?.role === "waiter";
   const canPay = user?.role === "owner" || user?.role === "manager" || user?.role === "cashier";
@@ -107,8 +109,9 @@ export default function OrdersPage() {
     const qs = q.toString();
     try {
       await downloadFile(`/orders/export${qs ? `?${qs}` : ""}`, "orders.csv");
+      toast.success("Orders exported");
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Export failed");
+      toast.error(err instanceof Error ? err.message : "Export failed");
     }
   }
 
@@ -227,6 +230,7 @@ function OrderDetailModal({
   canPay: boolean;
   canCancel: boolean;
 }) {
+  const toast = useToast();
   const { data: order, loading, error, refetch } = useApi(
     () => api.get<OrderDetail>(`/orders/${orderId}`),
     [orderId]
@@ -241,10 +245,11 @@ function OrderDetailModal({
     setBusy(true);
     try {
       await api.patch(`/orders/${orderId}/status`, { status: next });
+      toast.success(`Order ${humanize(next)}`);
       refetch();
       onChanged();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to update status");
+      toast.error(err instanceof Error ? err.message : "Failed to update status");
     } finally {
       setBusy(false);
     }
@@ -258,10 +263,11 @@ function OrderDetailModal({
         complete: payComplete,
       });
       setShowPay(false);
+      toast.success("Payment recorded");
       refetch();
       onChanged();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to take payment");
+      toast.error(err instanceof Error ? err.message : "Failed to take payment");
     } finally {
       setBusy(false);
     }
@@ -272,10 +278,11 @@ function OrderDetailModal({
     setBusy(true);
     try {
       await api.del(`/orders/${orderId}`);
+      toast.success("Order cancelled");
       refetch();
       onChanged();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to cancel order");
+      toast.error(err instanceof Error ? err.message : "Failed to cancel order");
     } finally {
       setBusy(false);
     }
@@ -399,6 +406,7 @@ function OrderDetailModal({
 type Line = { menu_item_id: number; name: string; price: number; quantity: number };
 
 function CreateOrderModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const toast = useToast();
   const [orderType, setOrderType] = useState("dine_in");
   const [tableId, setTableId] = useState("");
   const [lines, setLines] = useState<Line[]>([]);
@@ -454,6 +462,7 @@ function CreateOrderModal({ onClose, onCreated }: { onClose: () => void; onCreat
       };
       if (orderType === "dine_in") body.table_id = Number(tableId);
       await api.post("/orders", body);
+      toast.success("Order created");
       onCreated();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to create order");

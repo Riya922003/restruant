@@ -17,6 +17,7 @@ import {
   Modal,
   PageHeader,
 } from "@/components/ui/primitives";
+import { useToast } from "@/components/ui/toast";
 
 type StaffUser = {
   id: number;
@@ -35,6 +36,7 @@ const ALL_ROLES: UserRole[] = ["owner", "manager", "chef", "waiter", "cashier", 
 const EMPTY = { full_name: "", email: "", password: "", role: "waiter" as UserRole, phone: "" };
 
 export default function StaffPage() {
+  const toast = useToast();
   const { user } = useAuth();
   const isOwner = user?.role === "owner";
   // Roles this actor may assign. Managers cannot mint or elevate to owner.
@@ -108,6 +110,7 @@ export default function StaffPage() {
         });
       }
       setOpen(false);
+      toast.success(editing ? "Staff member updated" : "Staff member created");
       refetch();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to save user");
@@ -122,9 +125,10 @@ export default function StaffPage() {
     try {
       if (u.is_active) await api.del(`/users/${u.id}`);
       else await api.patch(`/users/${u.id}`, { is_active: true });
+      toast.success(u.is_active ? "User deactivated" : "User reactivated");
       refetch();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to update status");
+      toast.error(err instanceof Error ? err.message : "Failed to update status");
     }
   }
 
@@ -141,6 +145,7 @@ export default function StaffPage() {
     try {
       await api.post(`/users/${pwTarget.id}/reset-password`, { new_password: newPassword });
       setPwDone(true);
+      toast.success("Password reset");
     } catch (err) {
       setPwError(err instanceof Error ? err.message : "Failed to reset password");
     } finally {

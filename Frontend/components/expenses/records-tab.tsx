@@ -5,6 +5,7 @@ import { api, downloadFile } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { Field, Input, Textarea, Select } from "@/components/ui/field";
 import { Button, Card, EmptyState, ErrorState, LoadingState, Modal, StatCard } from "@/components/ui/primitives";
+import { useToast } from "@/components/ui/toast";
 import { formatCurrency, formatDate, humanize } from "@/lib/formatters";
 
 type ExpenseRecord = {
@@ -34,6 +35,7 @@ const EMPTY = {
 };
 
 export function RecordsTab({ canWrite, canDelete }: { canWrite: boolean; canDelete: boolean }) {
+  const toast = useToast();
   const [categoryId, setCategoryId] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -97,6 +99,7 @@ export function RecordsTab({ canWrite, canDelete }: { canWrite: boolean; canDele
       if (editing) await api.patch(`/expense-records/${editing.id}`, body);
       else await api.post("/expense-records", body);
       setOpen(false);
+      toast.success("Expense saved");
       refetch();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to save expense");
@@ -114,8 +117,9 @@ export function RecordsTab({ canWrite, canDelete }: { canWrite: boolean; canDele
     const qs = q.toString();
     try {
       await downloadFile(`/expense-records/export${qs ? `?${qs}` : ""}`, "expense-register.csv");
+      toast.success("Expenses exported");
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Export failed");
+      toast.error(err instanceof Error ? err.message : "Export failed");
     }
   }
 
@@ -123,9 +127,10 @@ export function RecordsTab({ canWrite, canDelete }: { canWrite: boolean; canDele
     if (!confirm("Delete this expense record?")) return;
     try {
       await api.del(`/expense-records/${r.id}`);
+      toast.success("Expense deleted");
       refetch();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to delete");
+      toast.error(err instanceof Error ? err.message : "Failed to delete");
     }
   }
 

@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import { StatusBadge } from "@/components/ui/badge";
 import { Field, Input, Select } from "@/components/ui/field";
 import { Button, Card, EmptyState, ErrorState, LoadingState, Modal, PageHeader } from "@/components/ui/primitives";
+import { useToast } from "@/components/ui/toast";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 
 type POItem = { id: number; product_id: number; quantity_ordered: number; quantity_received: number; unit_cost: number; line_total: number };
@@ -21,6 +22,7 @@ type Product = { id: number; name: string; sku: string; cost_price: number };
 const STATUSES = ["draft", "ordered", "partially_received", "received", "cancelled"];
 
 export default function PurchasesPage() {
+  const toast = useToast();
   const { user } = useAuth();
   const canManage = ["owner", "manager", "store_manager"].includes(user?.role ?? "");
 
@@ -62,6 +64,7 @@ export default function PurchasesPage() {
         items: lines.map((l) => ({ product_id: Number(l.product_id), quantity_ordered: Number(l.quantity_ordered), unit_cost: Number(l.unit_cost) })),
       });
       setShowCreate(false); setHead({ supplier_id: "", warehouse_id: "", expected_date: "" }); setLines([]);
+      toast.success("PO created");
       refetch();
     } catch (e) { setErr(e instanceof Error ? e.message : "Failed"); } finally { setBusy(false); }
   }
@@ -73,8 +76,9 @@ export default function PurchasesPage() {
     const qs = q.toString();
     try {
       await downloadFile(`/purchase-orders/export${qs ? `?${qs}` : ""}`, "purchase-orders.csv");
+      toast.success("Purchase orders exported");
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Export failed");
+      toast.error(e instanceof Error ? e.message : "Export failed");
     }
   }
 
@@ -103,7 +107,10 @@ export default function PurchasesPage() {
       .filter(([, q]) => Number(q) > 0)
       .map(([item_id, q]) => ({ item_id: Number(item_id), quantity: Number(q) }));
     if (linesToRecv.length === 0) { setErr("Enter a quantity to receive"); return; }
-    await action(() => api.post(`/purchase-orders/${detail.id}/receive`, { lines: linesToRecv }));
+    await action(async () => {
+      await api.post(`/purchase-orders/${detail.id}/receive`, { lines: linesToRecv });
+      toast.success("Stock received");
+    });
     setRecv({});
   }
 
@@ -196,10 +203,10 @@ export default function PurchasesPage() {
             </div>
             <div className="flex gap-2">
               {canManage && detail.status === "draft" ? (
-                <Button variant="secondary" disabled={busy} onClick={() => action(() => api.patch(`/purchase-orders/${detail.id}`, { status: "ordered" }))}>Place order</Button>
+                <Button variant="secondary" disabled={busy} onClick={() => action(async () => { await api.patch(`/purchase-orders/${detail.id}`, { status: "ordered" }); toast.success("Purchase order placed"); })}>Place order</Button>
               ) : null}
               {canManage && detail.status !== "received" && detail.status !== "cancelled" ? (
-                <Button variant="danger" disabled={busy} onClick={() => { if (confirm("Cancel / delete this PO?")) action(() => api.del(`/purchase-orders/${detail.id}`)).then(() => { refetch(); setDetail(null); }); }}>
+                <Button variant="danger" disabled={busy} onClick={() => { if (confirm("Cancel / delete this PO?")) action(async () => { await api.del(`/purchase-orders/${detail.id}`); toast.success(detail.status === "draft" ? "Purchase order deleted" : "Purchase order cancelled"); }).then(() => { refetch(); setDetail(null); }); }}>
                   {detail.status === "draft" ? "Delete" : "Cancel"}
                 </Button>
               ) : null}

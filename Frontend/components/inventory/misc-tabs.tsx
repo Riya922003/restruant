@@ -6,12 +6,14 @@ import { useApi } from "@/lib/use-api";
 import { Badge } from "@/components/ui/badge";
 import { Field, Input, Textarea } from "@/components/ui/field";
 import { Button, Card, EmptyState, ErrorState, LoadingState, Modal } from "@/components/ui/primitives";
+import { useToast } from "@/components/ui/toast";
 import { formatDateTime, humanize } from "@/lib/formatters";
 
 type Warehouse = { id: number; name: string; location: string | null; type: string; is_active: boolean };
 type Category = { id: number; name: string; description: string | null; is_active: boolean };
 
 export function WarehousesTab({ canManage }: { canManage: boolean }) {
+  const toast = useToast();
   const [search, setSearch] = useState("");
   const { data, loading, error, refetch } = useApi(
     () => api.list<Warehouse>(`/warehouses?limit=100&is_active=all${search ? `&search=${encodeURIComponent(search)}` : ""}`),
@@ -26,7 +28,9 @@ export function WarehousesTab({ canManage }: { canManage: boolean }) {
     setSaving(true); setErr(null);
     try {
       await api.post("/warehouses", { name: form.name, location: form.location || null, type: form.type || "store" });
-      setOpen(false); setForm({ name: "", location: "", type: "store" }); refetch();
+      setOpen(false); setForm({ name: "", location: "", type: "store" });
+      toast.success("Warehouse created");
+      refetch();
     } catch (e) { setErr(e instanceof Error ? e.message : "Failed"); } finally { setSaving(false); }
   }
 
@@ -69,6 +73,7 @@ export function WarehousesTab({ canManage }: { canManage: boolean }) {
 }
 
 export function CategoriesTab({ canManage }: { canManage: boolean }) {
+  const toast = useToast();
   const [search, setSearch] = useState("");
   const { data, loading, error, refetch } = useApi(
     () => api.list<Category>(`/product-categories?limit=100&is_active=all${search ? `&search=${encodeURIComponent(search)}` : ""}`),
@@ -83,7 +88,9 @@ export function CategoriesTab({ canManage }: { canManage: boolean }) {
     setSaving(true); setErr(null);
     try {
       await api.post("/product-categories", { name: form.name, description: form.description || null });
-      setOpen(false); setForm({ name: "", description: "" }); refetch();
+      setOpen(false); setForm({ name: "", description: "" });
+      toast.success("Category created");
+      refetch();
     } catch (e) { setErr(e instanceof Error ? e.message : "Failed"); } finally { setSaving(false); }
   }
 

@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import { StatusBadge } from "@/components/ui/badge";
 import { Field, Input, Textarea, Select } from "@/components/ui/field";
 import { Button, Card, EmptyState, ErrorState, LoadingState, Modal, PageHeader } from "@/components/ui/primitives";
+import { useToast } from "@/components/ui/toast";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 
 type InvoiceItem = { id: number; product_id: number | null; description: string; quantity: number; unit_price: number; line_total: number };
@@ -35,6 +36,7 @@ function fileHref(file_url: string) {
 }
 
 export default function InvoicesPage() {
+  const toast = useToast();
   const { user } = useAuth();
   const canWrite = ["owner", "manager", "store_manager"].includes(user?.role ?? "");
   const canDelete = ["owner", "manager"].includes(user?.role ?? "");
@@ -136,8 +138,9 @@ export default function InvoicesPage() {
     const qs = q.toString();
     try {
       await downloadFile(`/supplier-invoices/export${qs ? `?${qs}` : ""}`, "supplier-invoices.csv");
+      toast.success("Invoice exported");
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Export failed");
+      toast.error(err instanceof Error ? err.message : "Export failed");
     }
   }
 }
@@ -147,6 +150,7 @@ type LineDraft = { description: string; quantity: string; unit_price: string };
 function CreateInvoiceModal({ open, onClose, suppliers, onCreated }: {
   open: boolean; onClose: () => void; suppliers: Supplier[]; onCreated: () => void;
 }) {
+  const toast = useToast();
   const [head, setHead] = useState({ invoice_number: "", supplier_id: "", invoice_date: "", due_date: "", tax: "0", notes: "" });
   const [lines, setLines] = useState<LineDraft[]>([]);
   const [pick, setPick] = useState<LineDraft>({ description: "", quantity: "1", unit_price: "" });
@@ -182,6 +186,7 @@ function CreateInvoiceModal({ open, onClose, suppliers, onCreated }: {
         items: allLines.map((l) => ({ description: l.description.trim(), quantity: Number(l.quantity), unit_price: Number(l.unit_price || 0) })),
       });
       reset(); onCreated();
+      toast.success("Invoice created");
     } catch (e) { setErr(e instanceof Error ? e.message : "Failed"); } finally { setBusy(false); }
   }
 
@@ -233,6 +238,7 @@ function DetailInvoiceModal({ invoice, suppliers, categories, canDelete, onClose
   invoice: Invoice; suppliers: Supplier[]; categories: Category[]; canDelete: boolean;
   onClose: () => void; onRefetchDetail: () => Promise<void>; onListChanged: () => void; onDeleted: () => void;
 }) {
+  const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [categoryId, setCategoryId] = useState("");
@@ -244,8 +250,8 @@ function DetailInvoiceModal({ invoice, suppliers, categories, canDelete, onClose
 
   async function transition(to: string) {
     setBusy(true);
-    try { await api.post(`/supplier-invoices/${invoice.id}/status`, { status: to }); await refresh(); }
-    catch (e) { alert(e instanceof Error ? e.message : "Status change failed"); }
+    try { await api.post(`/supplier-invoices/${invoice.id}/status`, { status: to }); await refresh(); toast.success(`Invoice marked ${to}`); }
+    catch (e) { toast.error(e instanceof Error ? e.message : "Status change failed"); }
     finally { setBusy(false); }
   }
 
@@ -263,7 +269,8 @@ function DetailInvoiceModal({ invoice, suppliers, categories, canDelete, onClose
       const payload = await res.json().catch(() => null);
       if (!res.ok) throw new Error(payload?.message || "Upload failed");
       setFile(null); await refresh();
-    } catch (e) { alert(e instanceof Error ? e.message : "Upload failed"); }
+      toast.success("File uploaded");
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Upload failed"); }
     finally { setBusy(false); }
   }
 
@@ -272,17 +279,17 @@ function DetailInvoiceModal({ invoice, suppliers, categories, canDelete, onClose
     setBusy(true);
     try {
       await api.post(`/supplier-invoices/${invoice.id}/expense`, { category_id: Number(categoryId) });
-      alert("Expense booked (idempotent — safe to retry).");
+      toast.success("Expense booked");
       await refresh();
-    } catch (e) { alert(e instanceof Error ? e.message : "Failed to book expense"); }
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Failed to book expense"); }
     finally { setBusy(false); }
   }
 
   async function remove() {
     if (!confirm("Delete this invoice?")) return;
     setBusy(true);
-    try { await api.del(`/supplier-invoices/${invoice.id}`); onDeleted(); }
-    catch (e) { alert(e instanceof Error ? e.message : "Delete failed"); setBusy(false); }
+    try { await api.del(`/supplier-invoices/${invoice.id}`); toast.success("Invoice deleted"); onDeleted(); }
+    catch (e) { toast.error(e instanceof Error ? e.message : "Delete failed"); setBusy(false); }
   }
 
   return (
