@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { api, downloadFile } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
+import { useOrderEvents } from "@/lib/use-order-events";
 import { useAuth } from "@/lib/auth-context";
 import { StatusBadge } from "@/components/ui/badge";
 import { Field, Input, Select } from "@/components/ui/field";
@@ -88,7 +89,7 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("");
   const [search, setSearch] = useState("");
-  const { data, loading, error, refetch } = useApi(
+  const { data, loading, error, refetch, refresh } = useApi(
     () =>
       api.list<Order>(
         `/orders?limit=100${statusFilter ? `&status=${statusFilter}` : ""}${
@@ -97,6 +98,8 @@ export default function OrdersPage() {
       ),
     [statusFilter, paymentFilter, search]
   );
+
+  useOrderEvents(() => refresh(), { poll: refresh, pollMs: 5000 });
 
   const [showCreate, setShowCreate] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
@@ -585,3 +588,4 @@ function CreateOrderModal({ onClose, onCreated }: { onClose: () => void; onCreat
     </Modal>
   );
 }
+

@@ -26,3 +26,9 @@ docker compose up -d postgres
 Application Dockerfiles should be added after the backend and frontend startup
 commands stabilize. Containerizing unfinished app entry points early creates
 extra maintenance without improving the assessment foundation.
+## Realtime
+
+Orders use a narrow WebSocket channel at the Express backend `/ws` endpoint. The browser connects directly to the backend with the same JWT used for the REST API; only owner, manager, chef, waiter, and cashier sockets receive compact order events. The Orders page and dashboard treat those events as refetch signals, so PostgreSQL remains the source of truth.
+
+All other live-ish surfaces keep their existing polling or on-action fetch behavior. If the socket is unavailable, the order surfaces silently fall back to 5 second polling. The in-process broadcaster is single-instance only, which fits the current Render-style deployment. If the backend is scaled horizontally, add Redis pub/sub between instances before relying on WebSocket fan-out.
+

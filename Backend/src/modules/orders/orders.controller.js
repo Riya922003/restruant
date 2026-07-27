@@ -2,6 +2,7 @@ const { asyncHandler } = require("../../utils/async-handler");
 const { ok, created } = require("../../utils/respond");
 const { toCsv, sendCsv } = require("../../utils/csv");
 const { writeAudit } = require("../audit/audit.service");
+const { broadcastOrderEvent } = require("../../realtime/order-events");
 const svc = require("./orders.service");
 
 const EXPORT_COLUMNS = [
@@ -39,8 +40,19 @@ const getById = asyncHandler(async (req, res) => {
   ok(res, await svc.getById(req.params.id));
 });
 
+function emitOrderEvent(type, order) {
+  broadcastOrderEvent({
+    type,
+    order_id: order.id,
+    status: order.status,
+    table_id: order.table_id,
+  });
+}
+
 const create = asyncHandler(async (req, res) => {
-  created(res, await svc.create(req.body, req.user));
+  const order = await svc.create(req.body, req.user);
+  emitOrderEvent("order.created", order);
+  created(res, order);
 });
 
 const updateHeader = asyncHandler(async (req, res) => {
@@ -48,15 +60,21 @@ const updateHeader = asyncHandler(async (req, res) => {
 });
 
 const transitionStatus = asyncHandler(async (req, res) => {
-  ok(res, await svc.transitionStatus(req.params.id, req.body.status, req.user));
+  const order = await svc.transitionStatus(req.params.id, req.body.status, req.user);
+  emitOrderEvent(order.status === "cancelled" ? "order.cancelled" : "order.status_changed", order);
+  ok(res, order);
 });
 
 const payment = asyncHandler(async (req, res) => {
-  ok(res, await svc.takePayment(req.params.id, req.body, req.user));
+  const order = await svc.takePayment(req.params.id, req.body, req.user);
+  emitOrderEvent("order.payment_taken", order);
+  ok(res, order);
 });
 
 const cancel = asyncHandler(async (req, res) => {
-  ok(res, await svc.cancel(req.params.id, req.user));
+  const order = await svc.cancel(req.params.id, req.user);
+  emitOrderEvent("order.cancelled", order);
+  ok(res, order);
 });
 
 const listItems = asyncHandler(async (req, res) => {

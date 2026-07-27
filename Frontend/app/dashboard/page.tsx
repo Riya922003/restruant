@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
+import { useOrderEvents } from "@/lib/use-order-events";
 import { useAuth } from "@/lib/auth-context";
 import { formatCurrency, humanize } from "@/lib/formatters";
 import { Badge, StatusBadge } from "@/components/ui/badge";
@@ -273,10 +274,12 @@ function Donut({
 export default function DashboardPage() {
   const { user } = useAuth();
   const [range, setRange] = useState<Range>("30d");
-  const { data, loading, error, refetch } = useApi(
+  const { data, loading, error, refetch, refresh } = useApi(
     () => api.get<Summary>(`/dashboard/summary?range=${range}`),
     [range]
   );
+
+  useOrderEvents(() => refresh(), { poll: refresh, pollMs: 5000 });
 
   if (!user) return null;
 
@@ -731,3 +734,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
