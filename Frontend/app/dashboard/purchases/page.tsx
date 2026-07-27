@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/ui/badge";
 import { Field, Input, Select } from "@/components/ui/field";
 import { Button, Card, EmptyState, ErrorState, LoadingState, Modal, PageHeader } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { useAppDialog } from "@/components/ui/app-dialog";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 
 type POItem = { id: number; product_id: number; quantity_ordered: number; quantity_received: number; unit_cost: number; line_total: number };
@@ -23,6 +24,7 @@ const STATUSES = ["draft", "ordered", "partially_received", "received", "cancell
 
 export default function PurchasesPage() {
   const toast = useToast();
+  const dialog = useAppDialog();
   const { user } = useAuth();
   const canManage = ["owner", "manager", "store_manager"].includes(user?.role ?? "");
 
@@ -114,6 +116,22 @@ export default function PurchasesPage() {
     setRecv({});
   }
 
+  async function cancelOrDeleteDetail() {
+    if (!detail) return;
+    const ok = await dialog.confirm({
+      title: detail.status === "draft" ? "Delete purchase order" : "Cancel purchase order",
+      message: "Cancel / delete this PO?",
+      confirmLabel: detail.status === "draft" ? "Delete" : "Cancel PO",
+      destructive: true,
+    });
+    if (!ok) return;
+    await action(async () => {
+      await api.del(`/purchase-orders/${detail.id}`);
+      toast.success(detail.status === "draft" ? "Purchase order deleted" : "Purchase order cancelled");
+    });
+    refetch();
+    setDetail(null);
+  }
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
@@ -206,7 +224,7 @@ export default function PurchasesPage() {
                 <Button variant="secondary" disabled={busy} onClick={() => action(async () => { await api.patch(`/purchase-orders/${detail.id}`, { status: "ordered" }); toast.success("Purchase order placed"); })}>Place order</Button>
               ) : null}
               {canManage && detail.status !== "received" && detail.status !== "cancelled" ? (
-                <Button variant="danger" disabled={busy} onClick={() => { if (confirm("Cancel / delete this PO?")) action(async () => { await api.del(`/purchase-orders/${detail.id}`); toast.success(detail.status === "draft" ? "Purchase order deleted" : "Purchase order cancelled"); }).then(() => { refetch(); setDetail(null); }); }}>
+                <Button variant="danger" disabled={busy} onClick={cancelOrDeleteDetail}>
                   {detail.status === "draft" ? "Delete" : "Cancel"}
                 </Button>
               ) : null}

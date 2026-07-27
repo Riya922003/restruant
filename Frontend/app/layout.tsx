@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { PostHogIdentifyUser, PostHogPageView, PostHogProvider } from "@/components/analytics/posthog-provider";
 import { ToastProvider } from "@/components/ui/toast";
+import { AppDialogProvider } from "@/components/ui/app-dialog";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,11 +34,13 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <PostHogProvider>
           <ToastProvider>
-            <AuthProvider>
+            <AppDialogProvider>
+              <AuthProvider>
               <PostHogPageView />
               <PostHogIdentifyUser />
               {children}
             </AuthProvider>
+            </AppDialogProvider>
           </ToastProvider>
         </PostHogProvider>
       </body>

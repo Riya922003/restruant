@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/primitives";
 import { InvoiceReview } from "@/components/ai/invoice-review";
 import { useToast } from "@/components/ui/toast";
+import { useAppDialog } from "@/components/ui/app-dialog";
 import type { ImportRow, UploadResult } from "@/types/ai";
 
 type Supplier = { id: number; name: string };
@@ -35,6 +36,7 @@ const ACCEPT = ".pdf,.png,.jpg,.jpeg,.webp";
 
 export default function InvoiceAiPage() {
   const toast = useToast();
+  const dialog = useAppDialog();
   const { data, loading, error, refetch } = useApi(
     () => aiList<ImportRow>("/ai/invoices/imports?limit=100"),
     [],
@@ -86,7 +88,7 @@ export default function InvoiceAiPage() {
   }
 
   async function doRename(id: number, current: string) {
-    const name = window.prompt("Rename file", current);
+    const name = await dialog.prompt({ title: "Rename file", message: "Enter a new file name.", defaultValue: current, confirmLabel: "Rename" });
     if (name == null) return;
     const trimmed = name.trim();
     if (!trimmed || trimmed === current) return;
@@ -100,7 +102,7 @@ export default function InvoiceAiPage() {
   }
 
   async function doDelete(id: number, name: string) {
-    if (!confirm(`Delete "${name}"? This removes the uploaded file and its extraction.`)) return;
+    if (!(await dialog.confirm({ title: "Delete import", message: `Delete "${name}"? This removes the uploaded file and its extraction.`, confirmLabel: "Delete", destructive: true }))) return;
     try {
       await aiApi.del(`/ai/invoices/imports/${id}`);
       toast.success("Import deleted");

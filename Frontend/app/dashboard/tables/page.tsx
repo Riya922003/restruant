@@ -16,6 +16,7 @@ import {
   PageHeader,
 } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { useAppDialog } from "@/components/ui/app-dialog";
 
 type Table = {
   id: number;
@@ -29,6 +30,7 @@ const STATUSES = ["available", "occupied", "reserved", "out_of_service"];
 
 export default function TablesPage() {
   const toast = useToast();
+  const dialog = useAppDialog();
   const { user } = useAuth();
   const canManage = user?.role === "owner" || user?.role === "manager";
   const canSetStatus = canManage || user?.role === "waiter";
@@ -76,7 +78,7 @@ export default function TablesPage() {
   }
 
   async function removeTable(id: number) {
-    if (!confirm("Delete this table?")) return;
+    if (!(await dialog.confirm({ title: "Delete table", message: "Delete this table?", confirmLabel: "Delete", destructive: true }))) return;
     try {
       await api.del(`/tables/${id}`);
       toast.success("Table deleted");

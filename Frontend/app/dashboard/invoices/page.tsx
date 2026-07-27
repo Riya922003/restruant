@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/ui/badge";
 import { Field, Input, Textarea, Select } from "@/components/ui/field";
 import { Button, Card, EmptyState, ErrorState, LoadingState, Modal, PageHeader } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { useAppDialog } from "@/components/ui/app-dialog";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 
 type InvoiceItem = { id: number; product_id: number | null; description: string; quantity: number; unit_price: number; line_total: number };
@@ -239,6 +240,7 @@ function DetailInvoiceModal({ invoice, suppliers, categories, canDelete, onClose
   onClose: () => void; onRefetchDetail: () => Promise<void>; onListChanged: () => void; onDeleted: () => void;
 }) {
   const toast = useToast();
+  const dialog = useAppDialog();
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [categoryId, setCategoryId] = useState("");
@@ -286,7 +288,7 @@ function DetailInvoiceModal({ invoice, suppliers, categories, canDelete, onClose
   }
 
   async function remove() {
-    if (!confirm("Delete this invoice?")) return;
+    if (!(await dialog.confirm({ title: "Delete invoice", message: "Delete this invoice?", confirmLabel: "Delete", destructive: true }))) return;
     setBusy(true);
     try { await api.del(`/supplier-invoices/${invoice.id}`); toast.success("Invoice deleted"); onDeleted(); }
     catch (e) { toast.error(e instanceof Error ? e.message : "Delete failed"); setBusy(false); }

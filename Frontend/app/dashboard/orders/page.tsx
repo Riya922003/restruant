@@ -9,6 +9,7 @@ import { StatusBadge } from "@/components/ui/badge";
 import { Field, Input, Select } from "@/components/ui/field";
 import { formatCurrency, formatDateTime, humanize } from "@/lib/formatters";
 import { useToast } from "@/components/ui/toast";
+import { useAppDialog } from "@/components/ui/app-dialog";
 import {
   Button,
   Card,
@@ -234,6 +235,7 @@ function OrderDetailModal({
   canCancel: boolean;
 }) {
   const toast = useToast();
+  const dialog = useAppDialog();
   const { data: order, loading, error, refetch } = useApi(
     () => api.get<OrderDetail>(`/orders/${orderId}`),
     [orderId]
@@ -277,7 +279,7 @@ function OrderDetailModal({
   }
 
   async function cancelOrder() {
-    if (!confirm("Cancel this order?")) return;
+    if (!(await dialog.confirm({ title: "Cancel order", message: "Cancel this order?", confirmLabel: "Cancel order", destructive: true }))) return;
     setBusy(true);
     try {
       await api.del(`/orders/${orderId}`);

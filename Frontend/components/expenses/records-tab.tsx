@@ -6,6 +6,7 @@ import { useApi } from "@/lib/use-api";
 import { Field, Input, Textarea, Select } from "@/components/ui/field";
 import { Button, Card, EmptyState, ErrorState, LoadingState, Modal, StatCard } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { useAppDialog } from "@/components/ui/app-dialog";
 import { formatCurrency, formatDate, humanize } from "@/lib/formatters";
 
 type ExpenseRecord = {
@@ -36,6 +37,7 @@ const EMPTY = {
 
 export function RecordsTab({ canWrite, canDelete }: { canWrite: boolean; canDelete: boolean }) {
   const toast = useToast();
+  const dialog = useAppDialog();
   const [categoryId, setCategoryId] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -124,7 +126,7 @@ export function RecordsTab({ canWrite, canDelete }: { canWrite: boolean; canDele
   }
 
   async function remove(r: ExpenseRecord) {
-    if (!confirm("Delete this expense record?")) return;
+    if (!(await dialog.confirm({ title: "Delete expense", message: "Delete this expense record?", confirmLabel: "Delete", destructive: true }))) return;
     try {
       await api.del(`/expense-records/${r.id}`);
       toast.success("Expense deleted");

@@ -16,6 +16,7 @@ import {
   PageHeader,
 } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { useAppDialog } from "@/components/ui/app-dialog";
 
 type Supplier = {
   id: number;
@@ -32,6 +33,7 @@ const EMPTY = { name: "", contact_name: "", email: "", phone: "", address: "", p
 
 export default function SuppliersPage() {
   const toast = useToast();
+  const dialog = useAppDialog();
   const { user } = useAuth();
   const canManage = ["owner", "manager", "store_manager"].includes(user?.role ?? "");
 
@@ -106,7 +108,7 @@ export default function SuppliersPage() {
   }
 
   async function deactivate(s: Supplier) {
-    if (!confirm(`Deactivate ${s.name}?`)) return;
+    if (!(await dialog.confirm({ title: "Deactivate supplier", message: `Deactivate ${s.name}?`, confirmLabel: "Deactivate", destructive: true }))) return;
     try {
       await api.del(`/suppliers/${s.id}`);
       toast.success("Supplier deactivated");

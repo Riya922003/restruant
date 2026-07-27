@@ -7,11 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Field, Input, Textarea } from "@/components/ui/field";
 import { Button, Card, EmptyState, ErrorState, LoadingState, Modal } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { useAppDialog } from "@/components/ui/app-dialog";
 
 type Category = { id: number; name: string; description: string | null; is_active: boolean };
 
 export function CategoriesTab({ canManage }: { canManage: boolean }) {
   const toast = useToast();
+  const dialog = useAppDialog();
   const [search, setSearch] = useState("");
   const { data, loading, error, refetch } = useApi(
     () => api.list<Category>(`/expense-categories?limit=100&is_active=all${search ? `&search=${encodeURIComponent(search)}` : ""}`),
@@ -40,7 +42,7 @@ export function CategoriesTab({ canManage }: { canManage: boolean }) {
   }
 
   async function deactivate(c: Category) {
-    if (!confirm(`Deactivate ${c.name}?`)) return;
+    if (!(await dialog.confirm({ title: "Deactivate category", message: `Deactivate ${c.name}?`, confirmLabel: "Deactivate", destructive: true }))) return;
     try {
       await api.del(`/expense-categories/${c.id}`);
       toast.success("Category deactivated");

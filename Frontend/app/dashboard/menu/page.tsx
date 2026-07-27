@@ -16,6 +16,7 @@ import {
   PageHeader,
 } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { useAppDialog } from "@/components/ui/app-dialog";
 import { formatCurrency } from "@/lib/formatters";
 
 type Category = {
@@ -41,6 +42,7 @@ type MenuItem = {
 
 export default function MenuPage() {
   const toast = useToast();
+  const dialog = useAppDialog();
   const { user } = useAuth();
   const canManage = user?.role === "owner" || user?.role === "manager";
   const canToggle = canManage || user?.role === "chef";
@@ -123,7 +125,7 @@ export default function MenuPage() {
   }
 
   async function removeItem(id: number) {
-    if (!confirm("Delete this item?")) return;
+    if (!(await dialog.confirm({ title: "Delete menu item", message: "Delete this item?", confirmLabel: "Delete", destructive: true }))) return;
     try {
       await api.del(`/menu-items/${id}`);
       toast.success("Menu item deleted");

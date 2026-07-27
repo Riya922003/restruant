@@ -16,6 +16,7 @@ import {
   PageHeader,
 } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { useAppDialog } from "@/components/ui/app-dialog";
 
 type Recipe = {
   id: number;
@@ -46,6 +47,7 @@ const UNITS = ["kg", "g", "l", "ml", "unit", "pack", "dozen", "box"];
 
 export default function RecipesPage() {
   const toast = useToast();
+  const dialog = useAppDialog();
   const { user } = useAuth();
   const canManage =
     user?.role === "owner" || user?.role === "manager" || user?.role === "chef";
@@ -65,7 +67,7 @@ export default function RecipesPage() {
   const [showCreate, setShowCreate] = useState(false);
 
   async function removeRecipe(id: number) {
-    if (!confirm("Delete this recipe?")) return;
+    if (!(await dialog.confirm({ title: "Delete recipe", message: "Delete this recipe?", confirmLabel: "Delete", destructive: true }))) return;
     try {
       await api.del(`/recipes/${id}`);
       if (selectedId === id) setSelectedId(null);
@@ -77,7 +79,7 @@ export default function RecipesPage() {
   }
 
   async function removeLine(recipeId: number, lineId: number) {
-    if (!confirm("Remove this ingredient?")) return;
+    if (!(await dialog.confirm({ title: "Remove ingredient", message: "Remove this ingredient?", confirmLabel: "Remove", destructive: true }))) return;
     try {
       await api.del(`/recipes/${recipeId}/ingredients/${lineId}`);
       toast.success("Ingredient removed");

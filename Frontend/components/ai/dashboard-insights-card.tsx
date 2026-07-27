@@ -72,7 +72,7 @@ export function DashboardInsightsCard() {
           href="/dashboard/ai-insights"
           className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:border-zinc-300 hover:text-zinc-900"
         >
-          Open AI Insights →
+          Generate AI insights
         </Link>
       </div>
 

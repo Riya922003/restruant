@@ -18,6 +18,7 @@ import {
   PageHeader,
 } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { useAppDialog } from "@/components/ui/app-dialog";
 
 type StaffUser = {
   id: number;
@@ -37,6 +38,7 @@ const EMPTY = { full_name: "", email: "", password: "", role: "waiter" as UserRo
 
 export default function StaffPage() {
   const toast = useToast();
+  const dialog = useAppDialog();
   const { user } = useAuth();
   const isOwner = user?.role === "owner";
   // Roles this actor may assign. Managers cannot mint or elevate to owner.
@@ -121,7 +123,7 @@ export default function StaffPage() {
 
   async function toggleActive(u: StaffUser) {
     const verb = u.is_active ? "Deactivate" : "Reactivate";
-    if (!confirm(`${verb} ${u.full_name}?`)) return;
+    if (!(await dialog.confirm({ title: `${verb} user`, message: `${verb} ${u.full_name}?`, confirmLabel: verb, destructive: u.is_active }))) return;
     try {
       if (u.is_active) await api.del(`/users/${u.id}`);
       else await api.patch(`/users/${u.id}`, { is_active: true });
