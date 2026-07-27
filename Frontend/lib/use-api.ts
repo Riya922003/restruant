@@ -12,7 +12,7 @@ export function useApi<T>(fetcher: () => Promise<T>, deps: unknown[] = []) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/use-memo
   const run = useCallback(fetcher, deps);
 
   const load = useCallback(async (options: LoadOptions = {}) => {
@@ -36,7 +36,8 @@ export function useApi<T>(fetcher: () => Promise<T>, deps: unknown[] = []) {
   const refresh = useCallback(() => load({ silent: true }), [load]);
 
   useEffect(() => {
-    load();
+    const initial = window.setTimeout(load, 0);
+    return () => window.clearTimeout(initial);
   }, [load]);
 
   return { data, loading, error, refetch, refresh, setData };

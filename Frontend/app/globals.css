@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -12,15 +14,34 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.dark {
+  --background: #09090b;
+  --foreground: #f4f4f5;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+@layer utilities {
+  /* Dark-mode compatibility for existing dashboard utility classes. */
+  .dark .bg-white { background-color: #18181b; }
+  .dark .bg-zinc-50 { background-color: #18181b; }
+  .dark .bg-zinc-100 { background-color: #27272a; }
+  .dark .border-zinc-100 { border-color: #27272a; }
+  .dark .border-zinc-200 { border-color: #27272a; }
+  .dark .border-zinc-300 { border-color: #3f3f46; }
+  .dark .divide-zinc-100 > :not(:last-child) { border-color: #27272a; }
+  .dark .divide-zinc-200 > :not(:last-child) { border-color: #27272a; }
+  .dark .text-zinc-950 { color: #fafafa; }
+  .dark .text-zinc-900 { color: #f4f4f5; }
+  .dark .text-zinc-800 { color: #e4e4e7; }
+  .dark .text-zinc-700 { color: #d4d4d8; }
+  .dark .text-zinc-600 { color: #a1a1aa; }
+  .dark .text-zinc-500 { color: #a1a1aa; }
+  .dark .text-zinc-400 { color: #71717a; }
+  .dark .hover\:bg-zinc-50:hover { background-color: #18181b; }
+  .dark .hover\:bg-zinc-100:hover { background-color: #27272a; }
+  .dark .hover\:text-zinc-900:hover { color: #fafafa; }
 }

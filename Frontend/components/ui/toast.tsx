@@ -57,9 +57,9 @@ export function useToast(): ToastContextValue {
 }
 
 const TONE: Record<ToastKind, { border: string; icon: string; chip: string }> = {
-  success: { border: "border-emerald-200", icon: "✓", chip: "bg-emerald-100 text-emerald-700" },
-  error: { border: "border-red-200", icon: "!", chip: "bg-red-100 text-red-700" },
-  info: { border: "border-zinc-200", icon: "i", chip: "bg-zinc-100 text-zinc-600" },
+  success: { border: "border-emerald-200 dark:border-emerald-900/70", icon: "ok", chip: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" },
+  error: { border: "border-red-200 dark:border-red-900/70", icon: "!", chip: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" },
+  info: { border: "border-zinc-200 dark:border-zinc-800", icon: "i", chip: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300" },
 };
 
 function ToastViewport({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: number) => void }) {
@@ -71,18 +71,18 @@ function ToastViewport({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id:
           <div
             key={t.id}
             role="status"
-            className={`pointer-events-auto flex items-start gap-3 rounded-xl border ${tone.border} bg-white px-3.5 py-3 shadow-lg`}
+            className={`pointer-events-auto flex items-start gap-3 rounded-xl border ${tone.border} bg-white px-3.5 py-3 shadow-lg dark:bg-zinc-950`}
           >
             <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold ${tone.chip}`}>
               {tone.icon}
             </span>
-            <p className="flex-1 text-sm text-zinc-800">{t.message}</p>
+            <p className="flex-1 text-sm text-zinc-800 dark:text-zinc-100">{t.message}</p>
             <button
               onClick={() => onDismiss(t.id)}
-              className="shrink-0 text-lg leading-none text-zinc-400 transition hover:text-zinc-700"
+              className="shrink-0 text-lg leading-none text-zinc-400 transition hover:text-zinc-700 dark:hover:text-zinc-200"
               aria-label="Dismiss notification"
             >
-              ×
+              x
             </button>
           </div>
         );

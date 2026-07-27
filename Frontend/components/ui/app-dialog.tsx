@@ -70,15 +70,15 @@ export function AppDialogProvider({ children }: { children: React.ReactNode }) {
     <DialogContext.Provider value={value}>
       {children}
       {dialog ? (
-        <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-xl border border-zinc-200 bg-white shadow-xl">
-            <div className="border-b border-zinc-200 px-5 py-4">
-              <h2 className="text-base font-semibold text-zinc-950">
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="border-b border-zinc-200 dark:border-zinc-800 px-5 py-4">
+              <h2 className="text-base font-semibold text-zinc-950 dark:text-zinc-50">
                 {dialog.options.title ?? (dialog.type === "prompt" ? "Enter value" : "Confirm action")}
               </h2>
             </div>
             <div className="space-y-4 px-5 py-4">
-              <p className="text-sm leading-6 text-zinc-600">{dialog.options.message}</p>
+              <p className="text-sm leading-6 text-zinc-600 dark:text-zinc-300">{dialog.options.message}</p>
               {dialog.type === "prompt" ? (
                 <Input
                   autoFocus
@@ -94,7 +94,7 @@ export function AppDialogProvider({ children }: { children: React.ReactNode }) {
                 />
               ) : null}
             </div>
-            <div className="flex justify-end gap-2 border-t border-zinc-200 px-5 py-3">
+            <div className="flex justify-end gap-2 border-t border-zinc-200 dark:border-zinc-800 px-5 py-3">
               <Button
                 variant="secondary"
                 onClick={() => (dialog.type === "prompt" ? closePrompt(null) : closeConfirm(false))}

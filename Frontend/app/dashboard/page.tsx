@@ -240,15 +240,17 @@ function Donut({
   centerSub?: string;
 }) {
   const total = segments.reduce((a, s) => a + s.value, 0) || 1;
-  let acc = 0;
   const stops = segments
-    .map((s) => {
-      const start = (acc / total) * 100;
-      acc += s.value;
-      const end = (acc / total) * 100;
-      return `${s.color} ${start}% ${end}%`;
-    })
-    .join(", ");
+    .reduce(
+      (state, s) => {
+        const start = (state.acc / total) * 100;
+        const nextAcc = state.acc + s.value;
+        const end = (nextAcc / total) * 100;
+        return { acc: nextAcc, stops: [...state.stops, `${s.color} ${start}% ${end}%`] };
+      },
+      { acc: 0, stops: [] as string[] },
+    )
+    .stops.join(", ");
   return (
     <div className="flex items-center gap-5">
       <div className="relative h-32 w-32 shrink-0">
