@@ -130,5 +130,5 @@ GitHub Actions workflows are included for frontend, backend, and AI service. The
 
 - `JWT_SECRET` must match between the Express backend and the AI service.
 - AI provider keys are optional for local setup. Without them, the app still runs and invoice extraction can use the fallback path.
+- PostHog analytics is optional. Set `NEXT_PUBLIC_POSTHOG_KEY` and `NEXT_PUBLIC_POSTHOG_HOST` to enable it.
 - Dark/light mode is not delivered yet.
-
