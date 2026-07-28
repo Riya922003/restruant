@@ -116,7 +116,22 @@ $env:TEST_DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/restaurantos_t
 npm --prefix Backend test
 ```
 
-GitHub Actions workflows are included for frontend, backend, and AI service. The same commands can be run locally.
+GitHub Actions workflows are included for frontend, backend, and AI service, but they are currently not running because the payment account ID is blocked. The same checks can be run locally:
+
+```bash
+npm --prefix Frontend run build
+npm --prefix Frontend run lint
+```
+
+```bash
+cd ai-service
+python -m pytest
+```
+
+```bash
+$env:TEST_DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/restaurantos_test?sslmode=disable"
+npm --prefix Backend test
+```
 
 ## Documentation
 
