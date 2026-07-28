@@ -100,37 +100,68 @@ function BarChart({
   to: string;
   format?: (v: number) => string;
 }) {
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const max = Math.max(1, ...data.map((d) => d.value));
-  if (data.length === 0)
+  const active = activeIndex == null ? null : data[activeIndex];
+  if (data.length === 0) {
     return <p className="py-16 text-center text-sm text-zinc-400">No data in range.</p>;
+  }
+
   return (
-    <div>
-      <div className="relative flex h-44 items-end gap-1.5">
-        {/* faint gridlines for depth */}
-        <div className="pointer-events-none absolute inset-0 flex flex-col justify-between">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="border-t border-dashed border-zinc-100" />
+    <div className="rounded-xl border border-zinc-100 bg-zinc-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-900/45">
+      <div className="mb-3 flex min-h-8 items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+            {active ? active.label : "Total"}
+          </p>
+          <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+            {active ? format(active.value) : format(data.reduce((sum, d) => sum + d.value, 0))}
+          </p>
+        </div>
+        <span className="rounded-full bg-white px-2 py-1 text-[11px] font-medium text-zinc-500 shadow-sm dark:bg-zinc-950 dark:text-zinc-400">
+          Peak {format(max)}
+        </span>
+      </div>
+
+      <div className="relative flex h-48 items-end gap-2 rounded-lg bg-white px-2 pb-1 pt-3 dark:bg-zinc-950/70">
+        <div className="pointer-events-none absolute inset-x-2 inset-y-3 flex flex-col justify-between">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="border-t border-dashed border-zinc-100 dark:border-zinc-800/80" />
           ))}
         </div>
         {data.map((d, i) => (
-          <div key={i} className="group relative flex h-full flex-1 flex-col justify-end">
-            <div className="pointer-events-none absolute inset-x-0 -top-1 z-10 mx-auto w-max -translate-y-full rounded bg-zinc-900 px-1.5 py-0.5 text-[10px] font-medium text-white opacity-0 shadow transition-opacity group-hover:opacity-100">
+          <button
+            key={i}
+            type="button"
+            className="group relative z-10 flex h-full flex-1 flex-col justify-end rounded-t-md outline-none"
+            onMouseEnter={() => setActiveIndex(i)}
+            onFocus={() => setActiveIndex(i)}
+            onMouseLeave={() => setActiveIndex(null)}
+            onBlur={() => setActiveIndex(null)}
+            aria-label={`${d.label}: ${format(d.value)}`}
+          >
+            <span className="pointer-events-none absolute inset-x-0 -top-1 z-20 mx-auto w-max -translate-y-full rounded-lg bg-zinc-950 px-2 py-1 text-[10px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus:opacity-100 dark:bg-zinc-100 dark:text-zinc-950">
               {format(d.value)}
-            </div>
-            {/* Inline gradient: robust across Tailwind's gradient-utility rename. */}
-            <div
-              className="w-full rounded-t-md transition-opacity group-hover:opacity-80"
+            </span>
+            <span
+              className="block w-full rounded-t-lg shadow-sm transition duration-200 group-hover:scale-x-105 group-hover:shadow-md group-focus:scale-x-105"
               style={{
                 height: `${Math.max(3, (d.value / max) * 100)}%`,
                 backgroundImage: `linear-gradient(to top, ${from}, ${to})`,
+                boxShadow: activeIndex === i ? `0 10px 24px ${from}33` : undefined,
               }}
             />
-          </div>
+          </button>
         ))}
       </div>
-      <div className="mt-2 flex gap-1.5 border-t border-zinc-100 pt-1.5">
+      <div className="mt-2 flex gap-1.5 border-t border-zinc-100 pt-1.5 dark:border-zinc-800">
         {data.map((d, i) => (
-          <span key={i} className="flex-1 truncate text-center text-[10px] text-zinc-400">
+          <span
+            key={i}
+            className={`flex-1 truncate text-center text-[10px] transition ${
+              activeIndex === i ? "font-semibold text-zinc-800 dark:text-zinc-100" : "text-zinc-400"
+            }`}
+          >
             {d.label}
           </span>
         ))}
@@ -138,7 +169,6 @@ function BarChart({
     </div>
   );
 }
-
 // KPI tile: a tinted icon chip carries the color, the value is the hero, the
 // hint sits as a small pill top-right. Less generic than a plain accent rail.
 function Metric({
@@ -229,7 +259,7 @@ const ORDER_COLORS: Record<string, string> = {
 };
 const ACTIVE_STATUSES = ["open", "sent_to_kitchen", "preparing", "ready", "served"];
 
-// Conic-gradient donut with a legend — used for table occupancy.
+// Interactive SVG donut with a legend, used for table occupancy.
 function Donut({
   segments,
   centerLabel,
@@ -239,40 +269,84 @@ function Donut({
   centerLabel: string;
   centerSub?: string;
 }) {
+  const [activeLabel, setActiveLabel] = useState<string | null>(null);
   const total = segments.reduce((a, s) => a + s.value, 0) || 1;
-  const stops = segments
+  const slices = segments
     .reduce(
       (state, s) => {
-        const start = (state.acc / total) * 100;
+        const start = state.acc;
         const nextAcc = state.acc + s.value;
-        const end = (nextAcc / total) * 100;
-        return { acc: nextAcc, stops: [...state.stops, `${s.color} ${start}% ${end}%`] };
+        return { acc: nextAcc, slices: [...state.slices, { ...s, start, end: nextAcc }] };
       },
-      { acc: 0, stops: [] as string[] },
+      { acc: 0, slices: [] as (typeof segments[number] & { start: number; end: number })[] },
     )
-    .stops.join(", ");
+    .slices;
+  const active = slices.find((s) => s.label === activeLabel);
+  const activePct = active ? Math.round((active.value / total) * 100) : null;
+  const radius = 44;
+  const circumference = 2 * Math.PI * radius;
+
   return (
-    <div className="flex items-center gap-5">
-      <div className="relative h-32 w-32 shrink-0">
-        <div className="h-full w-full rounded-full" style={{ background: `conic-gradient(${stops})` }} />
-        <div className="absolute inset-[20%] flex flex-col items-center justify-center rounded-full bg-white shadow-inner">
-          <span className="text-xl font-semibold text-zinc-900">{centerLabel}</span>
-          {centerSub ? <span className="text-[10px] uppercase tracking-wide text-zinc-400">{centerSub}</span> : null}
+    <div className="flex items-center gap-5 rounded-xl border border-zinc-100 bg-zinc-50/60 p-4 dark:border-zinc-800 dark:bg-zinc-900/45">
+      <div className="relative h-40 w-40 shrink-0">
+        <svg viewBox="0 0 120 120" className="-rotate-90 drop-shadow-sm">
+          <circle
+            cx="60"
+            cy="60"
+            r={radius}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="16"
+            className="text-zinc-100 dark:text-zinc-800"
+          />
+          {slices.map((s) => {
+            const isActive = activeLabel === s.label;
+            return (
+              <circle
+                key={s.label}
+                cx="60"
+                cy="60"
+                r={radius}
+                fill="none"
+                stroke={s.color}
+                strokeWidth={isActive ? 18 : 15}
+                strokeLinecap="round"
+                strokeDasharray={`${((s.value / total) * circumference).toFixed(2)} ${circumference.toFixed(2)}`}
+                strokeDashoffset={(-((s.start / total) * circumference)).toFixed(2)}
+                className="cursor-pointer transition-all duration-200"
+                opacity={activeLabel && !isActive ? 0.36 : 1}
+                onMouseEnter={() => setActiveLabel(s.label)}
+                onMouseLeave={() => setActiveLabel(null)}
+              />
+            );
+          })}
+        </svg>
+        <div className="absolute inset-[23%] flex flex-col items-center justify-center rounded-full bg-white text-center shadow-inner dark:bg-zinc-950">
+          <span className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+            {active ? `${activePct}%` : centerLabel}
+          </span>
+          <span className="max-w-20 truncate text-[10px] uppercase tracking-wide text-zinc-400">
+            {active ? active.label : centerSub}
+          </span>
         </div>
       </div>
       <ul className="flex-1 space-y-2 text-sm">
         {segments.map((s) => (
-          <li key={s.label} className="flex items-center gap-2">
+          <li
+            key={s.label}
+            className="flex cursor-default items-center gap-2 rounded-lg px-2 py-1 transition hover:bg-white dark:hover:bg-zinc-950"
+            onMouseEnter={() => setActiveLabel(s.label)}
+            onMouseLeave={() => setActiveLabel(null)}
+          >
             <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
-            <span className="text-zinc-600">{s.label}</span>
-            <span className="ml-auto font-semibold text-zinc-900">{s.value}</span>
+            <span className="text-zinc-600 dark:text-zinc-300">{s.label}</span>
+            <span className="ml-auto font-semibold text-zinc-900 dark:text-zinc-50">{s.value}</span>
           </li>
         ))}
       </ul>
     </div>
   );
 }
-
 export default function DashboardPage() {
   const { user } = useAuth();
   const [range, setRange] = useState<Range>("30d");
@@ -429,15 +503,15 @@ export default function DashboardPage() {
                     if (rows.length === 0)
                       return <p className="py-8 text-center text-sm text-zinc-400">No active orders.</p>;
                     return (
-                      <ul className="space-y-3.5 py-1">
+                      <ul className="space-y-3 rounded-xl border border-zinc-100 bg-zinc-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-900/45">
                         {rows.map(({ st, n }) => (
-                          <li key={st} className="flex items-center gap-3">
+                          <li key={st} className="group flex items-center gap-3 rounded-lg px-2 py-1.5 transition hover:bg-white dark:hover:bg-zinc-950">
                             <span className="w-32 shrink-0">
                               <StatusBadge kind="order" value={st} />
                             </span>
-                            <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-zinc-100">
+                            <div className="h-3 flex-1 overflow-hidden rounded-full bg-white shadow-inner dark:bg-zinc-950">
                               <div
-                                className="h-full rounded-full"
+                                className="h-full rounded-full transition-all duration-300 group-hover:brightness-110"
                                 style={{ width: `${(n / max) * 100}%`, backgroundColor: ORDER_COLORS[st] }}
                               />
                             </div>
