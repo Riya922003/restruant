@@ -39,7 +39,7 @@ def _map_veryfi(raw: dict) -> dict:
         "invoice_number": raw.get("invoice_number"),
         "invoice_date": raw.get("date"),
         "due_date": raw.get("due_date"),
-        "currency": raw.get("currency_code"),
+        "currency": raw.get("currency_code") or _infer_currency(raw, line_items),
         "line_items": line_items,
         "subtotal": raw.get("subtotal"),
         "tax": raw.get("tax"),
@@ -48,6 +48,36 @@ def _map_veryfi(raw: dict) -> dict:
         "notes": None,
     }
 
+
+_CURRENCY_SYMBOLS = {
+    "$": "USD",
+    "₹": "INR",
+    "€": "EUR",
+    "£": "GBP",
+}
+
+
+def _infer_currency(raw: dict, line_items: list[dict]) -> str | None:
+    candidates = []
+
+    for key in ("ocr_text", "text", "document_text"):
+        value = raw.get(key)
+        if value:
+            candidates.append(str(value))
+
+    for key in ("subtotal", "tax", "total"):
+        value = raw.get(key)
+        if value is not None:
+            candidates.append(str(value))
+
+    for item in line_items:
+        for key in ("unit_price", "line_total"):
+            value = item.get(key)
+            if value is not None:
+                candidates.append(str(value))
+
+    matches = {code for text in candidates for symbol, code in _CURRENCY_SYMBOLS.items() if symbol in text}
+    return matches.pop() if len(matches) == 1 else None
 
 def _stub(filename: str) -> dict:
     base = re.sub(r"\.[^.]+$", "", filename)

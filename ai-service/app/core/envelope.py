@@ -14,3 +14,4 @@ def ok(data: Any, meta: Any | None = None, status_code: int = 200) -> JSONRespon
 
 def created(data: Any) -> JSONResponse:
     return ok(data, status_code=201)
+

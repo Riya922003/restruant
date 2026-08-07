@@ -45,3 +45,34 @@ def test_ocr_maps_veryfi_response_without_calling_network(monkeypatch):
     assert result["line_items"][0]["line_total"] == 240.0
     assert result["confidence"] == 87.0
     assert result["raw"]["invoice_number"] == "A-100"
+
+
+def test_ocr_infers_usd_when_veryfi_currency_code_is_missing(monkeypatch):
+    from app.core.config import get_settings
+    from app.services import ocr_service
+
+    get_settings.cache_clear()
+    monkeypatch.setenv("VERYFI_API_KEY", "test-key")
+
+    def fake_process_document(_file_bytes, _filename, _mime_type):
+        return {
+            "vendor": {"name": "My Company"},
+            "invoice_number": "0001",
+            "date": "February 20, 2026",
+            "due_date": "March 7, 2026",
+            "currency_code": None,
+            "line_items": [
+                {"description": "Coffee", "quantity": "50", "price": "$10", "total": "$500"},
+                {"description": "Cups", "quantity": "100", "price": "$9", "total": "$900"},
+            ],
+            "subtotal": "$1,400",
+            "tax": "$70",
+            "total": "$1,470",
+        }
+
+    monkeypatch.setattr(ocr_service.veryfi_client, "process_document", fake_process_document)
+
+    result = ocr_service.extract(b"fake", "handwritten-invoice.png", "image/png")
+
+    assert result["currency"] == "USD"
+    assert result["total"] == 1470.0
