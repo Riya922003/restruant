@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { api, downloadFile } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { useClientPagination } from "@/lib/use-client-pagination";
@@ -11,7 +12,6 @@ import { Field, Input, Select } from "@/components/ui/field";
 import { formatCurrency, formatDateTime, humanize } from "@/lib/formatters";
 import { useToast } from "@/components/ui/toast";
 import { Pagination } from "@/components/ui/pagination";
-import { useAppDialog } from "@/components/ui/app-dialog";
 import {
   Button,
   Card,
@@ -71,23 +71,13 @@ type MenuItem = {
 const ORDER_STATUSES = ["open", "sent_to_kitchen", "preparing", "ready", "served", "completed", "cancelled"];
 const ACTIVE_PRESET = "open,sent_to_kitchen,preparing,ready,served";
 const PAYMENT_STATUSES = ["unpaid", "paid", "refunded"];
-const PAYMENT_METHODS = ["cash", "card", "upi", "bank_transfer", "other"];
 const ORDER_TYPES = ["dine_in", "takeaway", "delivery"];
 
-const NEXT_STATUS: Record<string, string> = {
-  open: "sent_to_kitchen",
-  sent_to_kitchen: "preparing",
-  preparing: "ready",
-  ready: "served",
-  served: "completed",
-};
-
 export default function OrdersPage() {
+  const router = useRouter();
   const toast = useToast();
   const { user } = useAuth();
   const canCreate = user?.role === "owner" || user?.role === "manager" || user?.role === "waiter";
-  const canPay = user?.role === "owner" || user?.role === "manager" || user?.role === "cashier";
-  const canCancel = user?.role === "owner" || user?.role === "manager";
 
   const [statusFilter, setStatusFilter] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("");
@@ -107,7 +97,6 @@ export default function OrdersPage() {
   const pagination = useClientPagination(rows, [statusFilter, paymentFilter, search], 10);
 
   const [showCreate, setShowCreate] = useState(false);
-  const [detailId, setDetailId] = useState<number | null>(null);
 
   async function exportCsv() {
     const q = new URLSearchParams();
@@ -181,7 +170,7 @@ export default function OrdersPage() {
               {pagination.items.map((order) => (
                 <tr
                   key={order.id}
-                  onClick={() => setDetailId(order.id)}
+                  onClick={() => router.push(`/dashboard/orders/${order.id}`)}
                   className="cursor-pointer border-b border-zinc-100 hover:bg-zinc-50"
                 >
                   <td className="px-4 py-2 font-medium text-zinc-950">{order.order_number}</td>
@@ -203,16 +192,6 @@ export default function OrdersPage() {
         </Card>
       )}
 
-      {detailId !== null ? (
-        <OrderDetailModal
-          orderId={detailId}
-          onClose={() => setDetailId(null)}
-          onChanged={refetch}
-          canPay={canPay}
-          canCancel={canCancel}
-        />
-      ) : null}
-
       {showCreate ? (
         <CreateOrderModal
           onClose={() => setShowCreate(false)}
@@ -226,192 +205,6 @@ export default function OrdersPage() {
   );
 }
 
-function OrderDetailModal({
-  orderId,
-  onClose,
-  onChanged,
-  canPay,
-  canCancel,
-}: {
-  orderId: number;
-  onClose: () => void;
-  onChanged: () => void;
-  canPay: boolean;
-  canCancel: boolean;
-}) {
-  const toast = useToast();
-  const dialog = useAppDialog();
-  const { data: order, loading, error, refetch } = useApi(
-    () => api.get<OrderDetail>(`/orders/${orderId}`),
-    [orderId]
-  );
-
-  const [busy, setBusy] = useState(false);
-  const [showPay, setShowPay] = useState(false);
-  const [payMethod, setPayMethod] = useState("cash");
-  const [payComplete, setPayComplete] = useState(false);
-
-  async function advanceStatus(next: string) {
-    setBusy(true);
-    try {
-      await api.patch(`/orders/${orderId}/status`, { status: next });
-      toast.success(`Order ${humanize(next)}`);
-      refetch();
-      onChanged();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update status");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function takePayment() {
-    setBusy(true);
-    try {
-      await api.post(`/orders/${orderId}/payment`, {
-        payment_method: payMethod,
-        complete: payComplete,
-      });
-      setShowPay(false);
-      toast.success("Payment recorded");
-      refetch();
-      onChanged();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to take payment");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function cancelOrder() {
-    if (!(await dialog.confirm({ title: "Cancel order", message: "Cancel this order?", confirmLabel: "Cancel order", destructive: true }))) return;
-    setBusy(true);
-    try {
-      await api.del(`/orders/${orderId}`);
-      toast.success("Order cancelled");
-      refetch();
-      onChanged();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to cancel order");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const next = order ? NEXT_STATUS[order.status] : undefined;
-  const showPayButton = canPay && order?.payment_status === "unpaid" && order?.status !== "cancelled";
-  const showCancelButton =
-    canCancel && order && order.status !== "completed" && order.status !== "cancelled";
-
-  return (
-    <Modal open onClose={onClose} title={order ? `Order ${order.order_number}` : "Order"}>
-      {loading ? (
-        <LoadingState />
-      ) : error ? (
-        <ErrorState message={error} onRetry={refetch} />
-      ) : !order ? (
-        <EmptyState title="Order not found" />
-      ) : (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge value={order.status} kind="order" />
-            <StatusBadge value={order.payment_status} kind="payment" />
-            <span className="text-xs text-zinc-500">
-              {humanize(order.order_type)}
-              {order.table_id ? ` · Table ${order.table_id}` : ""}
-            </span>
-          </div>
-
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-zinc-200 text-xs uppercase text-zinc-500">
-                <th className="px-2 py-2 text-left font-medium">Item</th>
-                <th className="px-2 py-2 text-right font-medium">Qty</th>
-                <th className="px-2 py-2 text-right font-medium">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {order.items.map((item) => (
-                <tr key={item.id} className="border-b border-zinc-100">
-                  <td className="px-2 py-2 text-zinc-800">{item.item_name}</td>
-                  <td className="px-2 py-2 text-right text-zinc-700">{item.quantity}</td>
-                  <td className="px-2 py-2 text-right text-zinc-950">{formatCurrency(item.line_total)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <div className="space-y-1 border-t border-zinc-200 pt-3 text-sm">
-            <div className="flex justify-between text-zinc-600">
-              <span>Subtotal</span>
-              <span>{formatCurrency(order.subtotal)}</span>
-            </div>
-            <div className="flex justify-between text-zinc-600">
-              <span>Tax</span>
-              <span>{formatCurrency(order.tax)}</span>
-            </div>
-            <div className="flex justify-between text-zinc-600">
-              <span>Discount</span>
-              <span>{formatCurrency(order.discount)}</span>
-            </div>
-            <div className="flex justify-between font-semibold text-zinc-950">
-              <span>Total</span>
-              <span>{formatCurrency(order.total)}</span>
-            </div>
-          </div>
-
-          {showPay ? (
-            <div className="space-y-3 rounded-lg border border-zinc-200 p-3">
-              <Field label="Payment method">
-                <Select value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
-                  {PAYMENT_METHODS.map((m) => (
-                    <option key={m} value={m}>
-                      {humanize(m)}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <label className="flex items-center gap-2 text-sm text-zinc-700">
-                <input
-                  type="checkbox"
-                  checked={payComplete}
-                  onChange={(e) => setPayComplete(e.target.checked)}
-                />
-                Complete order
-              </label>
-              <div className="flex justify-end gap-2">
-                <Button variant="secondary" size="sm" onClick={() => setShowPay(false)}>
-                  Cancel
-                </Button>
-                <Button size="sm" onClick={takePayment} disabled={busy}>
-                  {busy ? "Saving..." : "Confirm payment"}
-                </Button>
-              </div>
-            </div>
-          ) : null}
-
-          <div className="flex flex-wrap justify-end gap-2 border-t border-zinc-200 pt-3">
-            {showCancelButton ? (
-              <Button variant="danger" size="sm" onClick={cancelOrder} disabled={busy}>
-                Cancel order
-              </Button>
-            ) : null}
-            {showPayButton && !showPay ? (
-              <Button variant="secondary" size="sm" onClick={() => setShowPay(true)} disabled={busy}>
-                Take payment
-              </Button>
-            ) : null}
-            {next ? (
-              <Button size="sm" onClick={() => advanceStatus(next)} disabled={busy}>
-                {`Advance to ${humanize(next)}`}
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      )}
-    </Modal>
-  );
-}
 
 type Line = { menu_item_id: number; name: string; price: number; quantity: number };
 
@@ -535,7 +328,7 @@ function CreateOrderModal({ onClose, onCreated }: { onClose: () => void; onCreat
                   <option value="">Select an item</option>
                   {menuItems.data?.data.map((m) => (
                     <option key={m.id} value={m.id}>
-                      {m.name} · {formatCurrency(m.price)}
+                      {m.name} Â· {formatCurrency(m.price)}
                     </option>
                   ))}
                 </Select>
@@ -562,7 +355,7 @@ function CreateOrderModal({ onClose, onCreated }: { onClose: () => void; onCreat
                 {lines.map((l) => (
                   <tr key={l.menu_item_id} className="border-b border-zinc-100">
                     <td className="py-1.5 text-zinc-800">{l.name}</td>
-                    <td className="py-1.5 text-right text-zinc-600">× {l.quantity}</td>
+                    <td className="py-1.5 text-right text-zinc-600">Ã— {l.quantity}</td>
                     <td className="py-1.5 text-right text-zinc-950">
                       {formatCurrency(l.price * l.quantity)}
                     </td>
